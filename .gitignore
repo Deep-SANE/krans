@@ -1,0 +1,58 @@
+# Build dirs
+build/
+build-*/
+cmake-build-*/
+out/
+bin/
+lib/
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+Makefile
+install_manifest.txt
+
+# Ninja
+build.ninja
+rules.ninja
+.ninja_deps
+.ninja_log
+
+# Objects / libs / binaries
+*.o
+*.obj
+*.lo
+*.la
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+
+# Crash/diag
+*.dSYM/
+core
+vgcore.*
+*.stackdump
+
+# Coverage
+*.gcno
+*.gcda
+*.gcov
+lcov.info
+
+# Editors/IDE
+.vscode/
+.idea/
+*.code-workspace
+*.swp
+*~
+.DS_Store
+
+# Generated data in build (keep repo's data/)
+build/data/
