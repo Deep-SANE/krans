@@ -11,36 +11,36 @@
 #include <functional>
 #include <algorithm>
 
-#include "sns/MatrixInterface.hpp"
-#include "sns/VectorInterface.hpp"
-#include "sns/VectorFactory.hpp"
-#include "sns/IO/MatrixLoader.hpp"
-#include "sns/adapters/eigen/EigenSparseMatrixAdapter.hpp"
-#include "sns/adapters/eigen/EigenVectorFactory.hpp"
-#include "sns/Solvers/EigenSVDSolver.hpp"
-#include "sns/Solvers/EigenFullPivLUSolver.hpp"
-#include "sns/Solvers/EigenCODSolver.hpp"
-#include "sns/Solvers/EigenQRCPSolver.hpp"
-#include "sns/Solvers/LOBPCGSolver.hpp"
-#include "sns/Solvers/CyclicLanczosSolver.hpp"
+#include "krans/MatrixInterface.hpp"
+#include "krans/VectorInterface.hpp"
+#include "krans/VectorFactory.hpp"
+#include "krans/IO/MatrixLoader.hpp"
+#include "krans/adapters/eigen/EigenSparseMatrixAdapter.hpp"
+#include "krans/adapters/eigen/EigenVectorFactory.hpp"
+#include "krans/Solvers/EigenSVDSolver.hpp"
+#include "krans/Solvers/EigenFullPivLUSolver.hpp"
+#include "krans/Solvers/EigenCODSolver.hpp"
+#include "krans/Solvers/EigenQRCPSolver.hpp"
+#include "krans/Solvers/LOBPCGSolver.hpp"
+#include "krans/Solvers/CyclicLanczosSolver.hpp"
 
-#ifdef SNS_USE_SPECTRA
-#include "sns/Solvers/SpectraSolver.hpp"
+#ifdef KRANS_USE_SPECTRA
+#include "krans/Solvers/SpectraSolver.hpp"
 #endif
-#ifdef SNS_USE_PRIMME
-#include "sns/Solvers/PrimmeSolver.hpp"
+#ifdef KRANS_USE_PRIMME
+#include "krans/Solvers/PrimmeSolver.hpp"
 #endif
-#ifdef SNS_USE_SLEPC
-#include "sns/Solvers/SlepcSolver.hpp"
+#ifdef KRANS_USE_SLEPC
+#include "krans/Solvers/SlepcSolver.hpp"
 #endif
-#ifdef SNS_USE_SUITESPARSE
-#include "sns/Solvers/SuiteSparseQRSolver.hpp"
+#ifdef KRANS_USE_SUITESPARSE
+#include "krans/Solvers/SuiteSparseQRSolver.hpp"
 #endif
 
-#include "sns/Solvers/CommonDenseUtils.hpp"
-#include "sns/Utils/SubspaceCompare.hpp"
+#include "krans/Solvers/CommonDenseUtils.hpp"
+#include "krans/Utils/SubspaceCompare.hpp"
 
-using namespace sns;
+using namespace krans;
 
 // Matrix Wrapper for SpMV counting 
 class CountingMatrixAdapter final : public MatrixInterface {
@@ -239,7 +239,7 @@ void run_verification() {
         run_solver("EigenFullPivLU", true, [&]() { return solvers::find_nullspace_fullpivlu(A_underlying, vf, tol_val); });
         run_solver("EigenCOD", true, [&]() { return solvers::find_nullspace_cod(A_underlying, vf, tol_val); });
         run_solver("EigenQRCP", true, [&]() { return solvers::find_nullspace_qrcp(A_underlying, vf, tol_val); });
-#ifdef SNS_USE_SUITESPARSE
+#ifdef KRANS_USE_SUITESPARSE
         run_solver("SuiteSparseQR", true, [&]() { return solvers::find_nullspace_suitesparse_qr(A_underlying, vf, tol_val); });
 #endif
 
@@ -263,7 +263,7 @@ void run_verification() {
             return solvers::find_nullspace_cyclic_lanczos(A_counting, vf, opt);
         });
 
-#ifdef SNS_USE_SPECTRA
+#ifdef KRANS_USE_SPECTRA
         run_solver("Spectra", false, [&]() { 
             std::size_t n = A_counting.cols();
             std::size_t nev = std::min<std::size_t>(task.k, n - 1);
@@ -272,10 +272,10 @@ void run_verification() {
             return solvers::find_nullspace_spectra(A_counting, vf, nev, ncv, tol_val);
         });
 #endif
-#ifdef SNS_USE_PRIMME
+#ifdef KRANS_USE_PRIMME
        run_solver("Primme", false, [&]() { return solvers::find_nullspace_primme(A_counting, vf, task.k, tol_val); });
 #endif
-#ifdef SNS_USE_SLEPC
+#ifdef KRANS_USE_SLEPC
         run_solver("Slepc", false, [&]() { return solvers::find_nullspace_slepc(A_counting, vf, task.k, tol_val); });
 #endif
 
@@ -332,7 +332,7 @@ void run_verification() {
 }
 
 int main(int argc, char** argv) {
-    std::cout << "SNS Iterative Verification Suite" << std::endl;
+    std::cout << "KraNS Iterative Verification Suite" << std::endl;
     try {
         run_verification();
     } catch (const std::exception& e) {

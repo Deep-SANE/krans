@@ -9,29 +9,29 @@
 #include <sys/resource.h>
 #include <stdexcept>
 
-#include "sns/MatrixInterface.hpp"
-#include "sns/VectorInterface.hpp"
-#include "sns/VectorFactory.hpp"
-#include "sns/IO/MatrixLoader.hpp"
-#include "sns/adapters/eigen/EigenSparseMatrixAdapter.hpp"
-#include "sns/adapters/eigen/EigenSparseMatrixRefAdapter.hpp"
-#include "sns/adapters/eigen/EigenVectorFactory.hpp"
+#include "krans/MatrixInterface.hpp"
+#include "krans/VectorInterface.hpp"
+#include "krans/VectorFactory.hpp"
+#include "krans/IO/MatrixLoader.hpp"
+#include "krans/adapters/eigen/EigenSparseMatrixAdapter.hpp"
+#include "krans/adapters/eigen/EigenSparseMatrixRefAdapter.hpp"
+#include "krans/adapters/eigen/EigenVectorFactory.hpp"
 
-#include "sns/Solvers/EigenSVDSolver.hpp"
-#include "sns/Solvers/EigenFullPivLUSolver.hpp"
-#include "sns/Solvers/EigenCODSolver.hpp"
-#include "sns/Solvers/EigenQRCPSolver.hpp"
-#include "sns/Solvers/LOBPCGSolver.hpp"
-#include "sns/Solvers/CyclicLanczosSolver.hpp"
+#include "krans/Solvers/EigenSVDSolver.hpp"
+#include "krans/Solvers/EigenFullPivLUSolver.hpp"
+#include "krans/Solvers/EigenCODSolver.hpp"
+#include "krans/Solvers/EigenQRCPSolver.hpp"
+#include "krans/Solvers/LOBPCGSolver.hpp"
+#include "krans/Solvers/CyclicLanczosSolver.hpp"
 
-#ifdef SNS_USE_SLEPC
-#include "sns/Solvers/SlepcSolver.hpp"
+#ifdef KRANS_USE_SLEPC
+#include "krans/Solvers/SlepcSolver.hpp"
 #endif
-#ifdef SNS_USE_SUITESPARSE
-#include "sns/Solvers/SuiteSparseQRSolver.hpp"
+#ifdef KRANS_USE_SUITESPARSE
+#include "krans/Solvers/SuiteSparseQRSolver.hpp"
 #endif
 
-using namespace sns;
+using namespace krans;
 
 // Cross-platform Peak RAM usage in Megabytes
 double get_peak_memory_mb() {
@@ -93,17 +93,17 @@ int main(int argc, char** argv) {
             opt.projector_passes = 2;
             opt.cg_maxit = 2000; 
             opt.use_harmonic = true;
-            opt.reorth = sns::solvers::ReorthMode::Double;
+            opt.reorth = krans::solvers::ReorthMode::Double;
             opt.grad_max_iters = 5000; 
             basis = solvers::find_nullspace_cyclic_lanczos(*A, vf, opt);
         } else if (solver_name == "Slepc") {
-#ifdef SNS_USE_SLEPC
+#ifdef KRANS_USE_SLEPC
             basis = solvers::find_nullspace_slepc(*A, vf, k, tol_val);
 #else
             throw std::runtime_error("DISABLED");
 #endif
         } else if (solver_name == "SuiteSparseQR") {
-#ifdef SNS_USE_SUITESPARSE
+#ifdef KRANS_USE_SUITESPARSE
             basis = solvers::find_nullspace_suitesparse_qr(*A, vf, tol_val);
 #else
             throw std::runtime_error("DISABLED");

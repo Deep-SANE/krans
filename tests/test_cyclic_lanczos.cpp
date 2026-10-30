@@ -1,9 +1,9 @@
-#include "sns/IO/MatrixLoader.hpp"
-#include "sns/Solvers/CyclicLanczosSolver.hpp"
-#include "sns/Utils/GramSchmidt.hpp"
-#include "sns/Utils/Projection.hpp"
-#include "sns/adapters/eigen/EigenSparseMatrixAdapter.hpp"
-#include "sns/adapters/eigen/EigenVectorFactory.hpp"
+#include "krans/IO/MatrixLoader.hpp"
+#include "krans/Solvers/CyclicLanczosSolver.hpp"
+#include "krans/Utils/GramSchmidt.hpp"
+#include "krans/Utils/Projection.hpp"
+#include "krans/adapters/eigen/EigenSparseMatrixAdapter.hpp"
+#include "krans/adapters/eigen/EigenVectorFactory.hpp"
 #include <Eigen/Sparse>
 
 #include <cassert>
@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 
-using namespace sns;
+using namespace krans;
 using Clock = std::chrono::steady_clock;
 
 // A lightweight wrapper that counts multiplies while delegating to an existing
@@ -69,13 +69,13 @@ project_onto_span(const std::vector<std::unique_ptr<VectorInterface>> &basis,
   }
 }
 
-static const char *reorth_name(sns::solvers::ReorthMode m) {
+static const char *reorth_name(krans::solvers::ReorthMode m) {
   switch (m) {
-  case sns::solvers::ReorthMode::None:
+  case krans::solvers::ReorthMode::None:
     return "none";
-  case sns::solvers::ReorthMode::Single:
+  case krans::solvers::ReorthMode::Single:
     return "single";
-  case sns::solvers::ReorthMode::Double:
+  case krans::solvers::ReorthMode::Double:
     return "double";
   }
   return "?";
@@ -83,7 +83,7 @@ static const char *reorth_name(sns::solvers::ReorthMode m) {
 
 static void print_header(const std::string &name, std::size_t m, std::size_t n,
                          std::size_t nnz,
-                         const sns::solvers::CyclicLanczosOptions &opt) {
+                         const krans::solvers::CyclicLanczosOptions &opt) {
   std::cout << "---- " << name
             << " ---------------------------------------------\n";
   std::cout << "dims: " << m << " x " << n << "   nnz=" << nnz << "\n";
@@ -125,7 +125,7 @@ int main() {
     CountingMatrixAdapter C(M);
     EigenVectorFactory F(static_cast<std::size_t>(A.cols()));
 
-    sns::solvers::CyclicLanczosOptions opt;
+    krans::solvers::CyclicLanczosOptions opt;
     opt.k = 1;
     opt.ncv = 20;
     opt.max_restarts = 50;
@@ -133,7 +133,7 @@ int main() {
     opt.tol_rel = 1e-10;
     opt.verbose = true;
     opt.use_harmonic = true;
-    opt.reorth = sns::solvers::ReorthMode::Double;
+    opt.reorth = krans::solvers::ReorthMode::Double;
     opt.nullity_known = 1;
     opt.rank_known = 2;
     opt.cg_maxit = 40;
@@ -143,7 +143,7 @@ int main() {
                  (std::size_t)A.nonZeros(), opt);
 
     const auto t0 = Clock::now();
-    auto basis = sns::solvers::find_nullspace_cyclic_lanczos(C, F, opt);
+    auto basis = krans::solvers::find_nullspace_cyclic_lanczos(C, F, opt);
     const auto t1 = Clock::now();
     const double sec = std::chrono::duration<double>(t1 - t0).count();
     print_perf(C, sec);
@@ -164,14 +164,14 @@ int main() {
   // ==================== Test 2: IJA mat1.ija (rank=100, nullity=5) ==========
   {
     try {
-      S A1 = sns::io::load_ija_triplet_matrix("data/mat1.ija", -1, -1);
+      S A1 = krans::io::load_ija_triplet_matrix("data/mat1.ija", -1, -1);
       A1.makeCompressed();
 
       EigenSparseMatrixAdapter M1(A1);
       CountingMatrixAdapter C1(M1);
       EigenVectorFactory F1((std::size_t)A1.cols());
 
-      sns::solvers::CyclicLanczosOptions opt1;
+      krans::solvers::CyclicLanczosOptions opt1;
       opt1.k = 5;
       opt1.ncv = std::max<std::size_t>(opt1.k + 40, 60);
       opt1.max_restarts = 200;
@@ -179,7 +179,7 @@ int main() {
       opt1.tol_rel = 1e-10;
       opt1.verbose = true;
       opt1.use_harmonic = true;
-      opt1.reorth = sns::solvers::ReorthMode::Double;
+      opt1.reorth = krans::solvers::ReorthMode::Double;
       opt1.nullity_known = 5;
       opt1.rank_known = 100;
       opt1.cg_maxit = 60;
@@ -197,7 +197,7 @@ int main() {
                    (std::size_t)A1.nonZeros(), opt1);
 
       const auto t0 = Clock::now();
-      auto basis1 = sns::solvers::find_nullspace_cyclic_lanczos(C1, F1, opt1);
+      auto basis1 = krans::solvers::find_nullspace_cyclic_lanczos(C1, F1, opt1);
       const auto t1 = Clock::now();
       const double sec = std::chrono::duration<double>(t1 - t0).count();
       print_perf(C1, sec);
@@ -216,7 +216,7 @@ int main() {
                   << "\n";
         assert(ri <= 1e-8);
       }
-      const double ortho1 = sns::utils::max_pairwise_abs_dot(basis1);
+      const double ortho1 = krans::utils::max_pairwise_abs_dot(basis1);
       std::cout << "[mat1] max pairwise |dot| = " << std::scientific << ortho1
                 << "\n";
       assert(ortho1 <= 1e-8);
@@ -245,7 +245,7 @@ int main() {
     CountingMatrixAdapter CI(MI);
     EigenVectorFactory F(3);
 
-    sns::solvers::CyclicLanczosOptions opt;
+    krans::solvers::CyclicLanczosOptions opt;
     opt.k = 1;
     opt.ncv = 20;
     opt.max_restarts = 30;
@@ -254,13 +254,13 @@ int main() {
     opt.verbose = false;
     opt.nullity_known = 0; // no right nullspace
     opt.rank_known = 3;
-    opt.reorth = sns::solvers::ReorthMode::Double;
+    opt.reorth = krans::solvers::ReorthMode::Double;
 
     print_header("Identity (3x3)", (std::size_t)I.rows(), (std::size_t)I.cols(),
                  (std::size_t)I.nonZeros(), opt);
 
     const auto t0 = Clock::now();
-    auto basis = sns::solvers::find_nullspace_cyclic_lanczos(CI, F, opt);
+    auto basis = krans::solvers::find_nullspace_cyclic_lanczos(CI, F, opt);
     const auto t1 = Clock::now();
     const double sec = std::chrono::duration<double>(t1 - t0).count();
     print_perf(CI, sec);
@@ -274,7 +274,7 @@ int main() {
   // nnz - 27,440. Stronger settings + a tiny SD preconditioner for A A^T.
   {
     try {
-      S A2 = sns::io::load_ija_triplet_matrix("data/mat2.ija", -1, -1);
+      S A2 = krans::io::load_ija_triplet_matrix("data/mat2.ija", -1, -1);
       A2.makeCompressed();
 
       EigenSparseMatrixAdapter M2(A2);
@@ -284,7 +284,7 @@ int main() {
       const int rank_known = 5425;
       const int nullity_known = 15;
 
-      sns::solvers::CyclicLanczosOptions opt2;
+      krans::solvers::CyclicLanczosOptions opt2;
       opt2.k = nullity_known;
       opt2.ncv = std::max<std::size_t>(nullity_known + 80, 128);
       opt2.max_restarts = 400;
@@ -296,7 +296,7 @@ int main() {
       opt2.tol_abs = 1e-12;
       opt2.tol_rel = 1e-10;
       opt2.use_harmonic = true;
-      opt2.reorth = sns::solvers::ReorthMode::Double;
+      opt2.reorth = krans::solvers::ReorthMode::Double;
       opt2.nullity_known = nullity_known;
       opt2.rank_known = rank_known;
       opt2.verbose = true;
@@ -352,7 +352,7 @@ int main() {
                    (std::size_t)A2.nonZeros(), opt2);
 
       const auto t0 = Clock::now();
-      auto R = sns::solvers::find_nullspace_cyclic_lanczos_ex(C2, F2, opt2);
+      auto R = krans::solvers::find_nullspace_cyclic_lanczos_ex(C2, F2, opt2);
       const auto t1 = Clock::now();
       const double sec = std::chrono::duration<double>(t1 - t0).count();
       print_perf(C2, sec);
@@ -375,7 +375,7 @@ int main() {
                   << "\n";
         assert(ri <= 1e-8);
       }
-      const double ortho2 = sns::utils::max_pairwise_abs_dot(R.right_null);
+      const double ortho2 = krans::utils::max_pairwise_abs_dot(R.right_null);
       std::cout << "[mat2] max pairwise |dot| = " << std::scientific << ortho2
                 << "\n";
       assert(ortho2 <= 1e-8);
@@ -409,14 +409,14 @@ int main() {
     CountingMatrixAdapter C(M);
     EigenVectorFactory F(2);
 
-    sns::solvers::CyclicLanczosOptions opt;
+    krans::solvers::CyclicLanczosOptions opt;
     opt.k = 1;
     opt.ncv = 20;
     opt.max_restarts = 50;
     opt.tol_abs = 1e-12;
     opt.tol_rel = 1e-10;
     opt.use_harmonic = true;
-    opt.reorth = sns::solvers::ReorthMode::Double;
+    opt.reorth = krans::solvers::ReorthMode::Double;
     opt.nullity_known = 1;
     opt.rank_known = 1;
     opt.return_left_space = true;
@@ -426,7 +426,7 @@ int main() {
                  (std::size_t)A.cols(), (std::size_t)A.nonZeros(), opt);
 
     const auto t0 = Clock::now();
-    auto R = sns::solvers::find_nullspace_cyclic_lanczos_ex(C, F, opt);
+    auto R = krans::solvers::find_nullspace_cyclic_lanczos_ex(C, F, opt);
     const auto t1 = Clock::now();
     const double sec = std::chrono::duration<double>(t1 - t0).count();
     print_perf(C, sec);
@@ -469,7 +469,7 @@ int main() {
     CountingMatrixAdapter C(M);
     EigenVectorFactory F(static_cast<std::size_t>(A.cols()));
 
-    sns::solvers::CyclicLanczosOptions opt;
+    krans::solvers::CyclicLanczosOptions opt;
     opt.k = 1;
     opt.ncv = 20;
     opt.max_restarts = 50;
@@ -477,7 +477,7 @@ int main() {
     opt.tol_rel = 1e-10;
     opt.verbose = false;
     opt.use_harmonic = true;
-    opt.reorth = sns::solvers::ReorthMode::Double;
+    opt.reorth = krans::solvers::ReorthMode::Double;
     opt.nullity_known = 1;
     opt.rank_known = 2;
     opt.cg_maxit = 40;
@@ -487,7 +487,7 @@ int main() {
                  (std::size_t)A.cols(), (std::size_t)A.nonZeros(), opt);
 
     const auto t0 = Clock::now();
-    auto R = sns::solvers::find_nullspace_cyclic_lanczos_ex(C, F, opt);
+    auto R = krans::solvers::find_nullspace_cyclic_lanczos_ex(C, F, opt);
     const auto t1 = Clock::now();
     const double sec = std::chrono::duration<double>(t1 - t0).count();
     print_perf(C, sec);

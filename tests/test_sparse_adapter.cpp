@@ -1,12 +1,12 @@
-#include "sns/adapters/eigen/EigenSparseMatrixAdapter.hpp"
-#include "sns/adapters/eigen/EigenVectorAdapter.hpp"
+#include "krans/adapters/eigen/EigenSparseMatrixAdapter.hpp"
+#include "krans/adapters/eigen/EigenVectorAdapter.hpp"
 #include <Eigen/Sparse>
 #include <cassert>
 #include <cmath>
 #include <iostream>
 #include <vector>
 
-using namespace sns;
+using namespace krans;
 
 int main() {
   using SpMat = Eigen::SparseMatrix<double, Eigen::ColMajor, int>;

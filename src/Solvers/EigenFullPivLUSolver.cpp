@@ -1,10 +1,10 @@
-#include "sns/Solvers/EigenFullPivLUSolver.hpp"
-#include "sns/Solvers/CommonDenseUtils.hpp"
+#include "krans/Solvers/EigenFullPivLUSolver.hpp"
+#include "krans/Solvers/CommonDenseUtils.hpp"
 
 #include <Eigen/Dense>
 #include <limits>
 
-namespace sns::solvers {
+namespace krans::solvers {
 
 std::vector<std::unique_ptr<VectorInterface>>
 find_nullspace_fullpivlu(const MatrixInterface &A,
@@ -39,4 +39,4 @@ find_nullspace_fullpivlu(const MatrixInterface &A,
   return detail::wrap_and_optionally_orthonormalize(N, vf, true);
 }
 
-} // namespace sns::solvers
+} // namespace krans::solvers

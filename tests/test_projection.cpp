@@ -1,13 +1,13 @@
-#include "sns/Utils/Projection.hpp"
-#include "sns/adapters/eigen/EigenDenseMatrixAdapter.hpp"
-#include "sns/adapters/eigen/EigenVectorAdapter.hpp"
+#include "krans/Utils/Projection.hpp"
+#include "krans/adapters/eigen/EigenDenseMatrixAdapter.hpp"
+#include "krans/adapters/eigen/EigenVectorAdapter.hpp"
 
 #include <Eigen/Dense>
 #include <cassert>
 #include <cmath>
 #include <iostream>
 
-using namespace sns;
+using namespace krans;
 
 static const Eigen::VectorXd &view(const VectorInterface &v) {
   return dynamic_cast<const EigenVectorAdapter &>(v).view();
@@ -27,7 +27,7 @@ int main() {
 
   // 1) residual_norm_Av matches direct computation
   v.view() << 1, -1, 2;
-  double r1 = sns::utils::residual_norm_Av(A, v, tmp_m);
+  double r1 = krans::utils::residual_norm_Av(A, v, tmp_m);
   double r1_ref = (A_e * view(v)).norm();
   assert(std::fabs(r1 - r1_ref) < 1e-15);
 
@@ -40,9 +40,9 @@ int main() {
     const double tau = 0.9 / (smax * smax); // safely inside (0, 2/||A||^2)
 
     v.view() << 0.3, -0.7, 1.1;
-    double before = sns::utils::residual_norm_Av(A, v, tmp_m);
-    sns::utils::gradient_nullspace_step(A, v, tmp_m, tmp_n, tau);
-    double after = sns::utils::residual_norm_Av(A, v, tmp_m);
+    double before = krans::utils::residual_norm_Av(A, v, tmp_m);
+    krans::utils::gradient_nullspace_step(A, v, tmp_m, tmp_n, tau);
+    double after = krans::utils::residual_norm_Av(A, v, tmp_m);
     assert(after < before - 1e-14); // strict decrease
   }
 
@@ -52,8 +52,8 @@ int main() {
     v1.view() << 4, -5, 6;
     v2.view() << 4, -5, 6;
 
-    sns::utils::gradient_nullspace_step_unit_tau(A, v1, tmp_m, tmp_n);
-    sns::utils::gradient_nullspace_step(A, v2, tmp_m, tmp_n, 1.0);
+    krans::utils::gradient_nullspace_step_unit_tau(A, v1, tmp_m, tmp_n);
+    krans::utils::gradient_nullspace_step(A, v2, tmp_m, tmp_n, 1.0);
 
     assert((view(v1) - view(v2)).norm() < 1e-15);
   }
@@ -73,11 +73,11 @@ int main() {
     EigenVectorAdapter v_proj = v; // copy for explicit projector check
 
     // Apply library projector
-    sns::utils::orthogonal_project_onto_nullspace(A, v, tmp_m, w, tmp_n,
+    krans::utils::orthogonal_project_onto_nullspace(A, v, tmp_m, w, tmp_n,
                                                   solve_normal);
 
     // Check Av == 0
-    double res = sns::utils::residual_norm_Av(A, v, tmp_m);
+    double res = krans::utils::residual_norm_Av(A, v, tmp_m);
     assert(res < 1e-12);
 
     // Explicit projector P = I − A^T(AA^T)^{-1}A
@@ -105,15 +105,15 @@ int main() {
       wv = G.ldlt().solve(b);
     };
 
-    sns::utils::orthogonal_project_onto_nullspace(A, vz, tmp_m, w, tmp_n,
+    krans::utils::orthogonal_project_onto_nullspace(A, vz, tmp_m, w, tmp_n,
                                                   solve_normal);
 
     assert((view(vz) - view(vz_before)).norm() < 1e-12);
-    assert(sns::utils::residual_norm_Av(A, vz, tmp_m) < 1e-15);
+    assert(krans::utils::residual_norm_Av(A, vz, tmp_m) < 1e-15);
 
     // Idempotence (P^2 = P)
     EigenVectorAdapter vz2 = vz;
-    sns::utils::orthogonal_project_onto_nullspace(A, vz2, tmp_m, w, tmp_n,
+    krans::utils::orthogonal_project_onto_nullspace(A, vz2, tmp_m, w, tmp_n,
                                                   solve_normal);
     assert((view(vz2) - view(vz)).norm() < 1e-12);
   }

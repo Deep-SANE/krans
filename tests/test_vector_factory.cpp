@@ -1,10 +1,10 @@
-#include "sns/adapters/eigen/EigenVectorAdapter.hpp"
-#include "sns/adapters/eigen/EigenVectorFactory.hpp"
+#include "krans/adapters/eigen/EigenVectorAdapter.hpp"
+#include "krans/adapters/eigen/EigenVectorFactory.hpp"
 #include <cassert>
 #include <cmath>
 #include <iostream>
 
-using namespace sns;
+using namespace krans;
 
 static bool approx_equal(const VectorInterface &a, const VectorInterface &b,
                          double tol = 1e-12) {

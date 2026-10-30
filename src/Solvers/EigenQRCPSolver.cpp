@@ -1,10 +1,10 @@
-#include "sns/Solvers/EigenQRCPSolver.hpp"
-#include "sns/Solvers/CommonDenseUtils.hpp"
+#include "krans/Solvers/EigenQRCPSolver.hpp"
+#include "krans/Solvers/CommonDenseUtils.hpp"
 
 #include <Eigen/Dense>
 #include <limits>
 
-namespace sns::solvers {
+namespace krans::solvers {
 
 std::vector<std::unique_ptr<VectorInterface>>
 find_nullspace_qrcp(const MatrixInterface &A,
@@ -49,4 +49,4 @@ find_nullspace_qrcp(const MatrixInterface &A,
   return detail::wrap_and_optionally_orthonormalize(N, vf, true);
 }
 
-} // namespace sns::solvers
+} // namespace krans::solvers

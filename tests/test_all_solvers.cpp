@@ -1,29 +1,29 @@
-#include "sns/Solvers/EigenCODSolver.hpp"
-#include "sns/Solvers/EigenFullPivLUSolver.hpp"
-#include "sns/Solvers/EigenQRCPSolver.hpp"
-#include "sns/Solvers/EigenSVDSolver.hpp"
-#include "sns/Solvers/CyclicLanczosSolver.hpp"
-#include "sns/Solvers/LOBPCGSolver.hpp"
-#include "sns/IO/MatrixLoader.hpp"
+#include "krans/Solvers/EigenCODSolver.hpp"
+#include "krans/Solvers/EigenFullPivLUSolver.hpp"
+#include "krans/Solvers/EigenQRCPSolver.hpp"
+#include "krans/Solvers/EigenSVDSolver.hpp"
+#include "krans/Solvers/CyclicLanczosSolver.hpp"
+#include "krans/Solvers/LOBPCGSolver.hpp"
+#include "krans/IO/MatrixLoader.hpp"
 
-#ifdef SNS_USE_SPECTRA
-#include "sns/Solvers/SpectraSolver.hpp"
+#ifdef KRANS_USE_SPECTRA
+#include "krans/Solvers/SpectraSolver.hpp"
 #endif
-#ifdef SNS_USE_SLEPC
-#include "sns/Solvers/SlepcSolver.hpp"
+#ifdef KRANS_USE_SLEPC
+#include "krans/Solvers/SlepcSolver.hpp"
 #endif
-#ifdef SNS_USE_SUITESPARSE
-#include "sns/Solvers/SuiteSparseQRSolver.hpp"
+#ifdef KRANS_USE_SUITESPARSE
+#include "krans/Solvers/SuiteSparseQRSolver.hpp"
 #endif
-#ifdef SNS_USE_PRIMME
-#include "sns/Solvers/PrimmeSolver.hpp"
+#ifdef KRANS_USE_PRIMME
+#include "krans/Solvers/PrimmeSolver.hpp"
 #endif
 
-#include "sns/Utils/SubspaceCompare.hpp"
-#include "sns/adapters/eigen/EigenDenseMatrixAdapter.hpp"
-#include "sns/adapters/eigen/EigenSparseMatrixAdapter.hpp"
-#include "sns/adapters/eigen/EigenVectorAdapter.hpp"
-#include "sns/adapters/eigen/EigenVectorFactory.hpp"
+#include "krans/Utils/SubspaceCompare.hpp"
+#include "krans/adapters/eigen/EigenDenseMatrixAdapter.hpp"
+#include "krans/adapters/eigen/EigenSparseMatrixAdapter.hpp"
+#include "krans/adapters/eigen/EigenVectorAdapter.hpp"
+#include "krans/adapters/eigen/EigenVectorFactory.hpp"
 
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
@@ -33,7 +33,7 @@
 #include <cassert>
 #include <functional>
 
-using namespace sns;
+using namespace krans;
 
 struct SolverEntry {
     std::string name;
@@ -90,7 +90,7 @@ void run_test_on_matrix(const std::string& path, std::size_t k_target, const std
             const auto& r2 = all_results[j];
             
             if (r1.basis.size() > 0 && r1.basis.size() == r2.basis.size()) {
-                double diff = sns::utils::subspace_diff(r1.basis, r2.basis, 1e-7);
+                double diff = krans::utils::subspace_diff(r1.basis, r2.basis, 1e-7);
                 if (diff > 1e-5) {
                     std::cout << "! WARNING: Subspace mismatch between " << r1.name 
                               << " and " << r2.name << " (diff=" << diff << ")\n";
@@ -139,7 +139,7 @@ int main() {
         opt.max_iters = 1000;
         return solvers::find_nullspace_lobpcg(A, vf, opt);
     }});
-#ifdef SNS_USE_SPECTRA
+#ifdef KRANS_USE_SPECTRA
     solvers.push_back({"spectra", [](const MatrixInterface& A, const VectorFactory& vf, std::size_t k, double tol) {
         std::size_t n = A.cols();
         std::size_t nev = std::min<std::size_t>(k, n - 1);
@@ -148,18 +148,18 @@ int main() {
         return solvers::find_nullspace_spectra(A, vf, nev, ncv, tol);
     }});
 #endif
-#ifdef SNS_USE_SLEPC
+#ifdef KRANS_USE_SLEPC
     solvers.push_back({"slepc", [](const MatrixInterface& A, const VectorFactory& vf, std::size_t k, double tol) {
         return solvers::find_nullspace_slepc(A, vf, k, tol);
     }});
 #endif
-#ifdef SNS_USE_SUITESPARSE
+#ifdef KRANS_USE_SUITESPARSE
     solvers.push_back({"suitesparse", [](const MatrixInterface& A, const VectorFactory& vf, std::size_t, double tol) {
         return solvers::find_nullspace_suitesparse_qr(A, vf, tol);
     }});
 #endif
 
-#ifdef SNS_USE_PRIMME
+#ifdef KRANS_USE_PRIMME
     solvers.push_back({"primme", [](const MatrixInterface& A, const VectorFactory& vf, std::size_t k, double tol) {
         return solvers::find_nullspace_primme(A, vf, k, tol);
     }});

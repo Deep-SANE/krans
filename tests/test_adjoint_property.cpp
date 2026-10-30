@@ -1,6 +1,6 @@
-#include "sns/adapters/eigen/EigenDenseMatrixAdapter.hpp"
-#include "sns/adapters/eigen/EigenSparseMatrixAdapter.hpp"
-#include "sns/adapters/eigen/EigenVectorAdapter.hpp"
+#include "krans/adapters/eigen/EigenDenseMatrixAdapter.hpp"
+#include "krans/adapters/eigen/EigenSparseMatrixAdapter.hpp"
+#include "krans/adapters/eigen/EigenVectorAdapter.hpp"
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <cassert>
@@ -8,7 +8,7 @@
 #include <iostream>
 #include <vector>
 
-using namespace sns;
+using namespace krans;
 
 static void check_dense(int m, int n) {
   Eigen::MatrixXd A = Eigen::MatrixXd::Random(m, n);

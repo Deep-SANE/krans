@@ -1,6 +1,6 @@
-#ifdef SNS_USE_SPECTRA
+#ifdef KRANS_USE_SPECTRA
 
-#include "sns/Solvers/SpectraSolver.hpp"
+#include "krans/Solvers/SpectraSolver.hpp"
 #include <Spectra/SymEigsSolver.h>
 #include <Eigen/Core>
 #include <vector>
@@ -10,7 +10,7 @@
 #include <algorithm> 
 #include <stdexcept> 
 
-namespace sns::solvers {
+namespace krans::solvers {
 
 class SpectraNormalOperator {
 private:
@@ -83,20 +83,20 @@ find_nullspace_spectra(const MatrixInterface &A, const VectorFactory &vf,
   return accepted_null_vectors;
 }
 
-} // namespace sns::solvers
+} // namespace krans::solvers
 
-#else // SNS_USE_SPECTRA
+#else // KRANS_USE_SPECTRA
 
-#include "sns/Solvers/SpectraSolver.hpp"
+#include "krans/Solvers/SpectraSolver.hpp"
 #include <stdexcept>
 
-namespace sns::solvers {
+namespace krans::solvers {
 
 std::vector<std::unique_ptr<VectorInterface>>
 find_nullspace_spectra(const MatrixInterface &A, const VectorFactory &vf, std::size_t k, std::size_t ncv, double tol) {
-    throw std::runtime_error("find_nullspace_spectra: SNS was built without Spectra support.");
+    throw std::runtime_error("find_nullspace_spectra: KraNS was built without Spectra support.");
 }
 
-} // namespace sns::solvers
+} // namespace krans::solvers
 
-#endif // SNS_USE_SPECTRA
+#endif // KRANS_USE_SPECTRA

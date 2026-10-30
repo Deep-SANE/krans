@@ -1,4 +1,4 @@
-#include "sns/Utils/GramSchmidt.hpp"
+#include "krans/Utils/GramSchmidt.hpp"
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace sns::utils {
+namespace krans::utils {
 
 // helper: validate all vectors share the same size (throws in release too)
 static void
@@ -90,4 +90,4 @@ double max_pairwise_abs_dot(
   return m;
 }
 
-} // namespace sns::utils
+} // namespace krans::utils

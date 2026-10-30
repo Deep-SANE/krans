@@ -1,11 +1,11 @@
-#include "sns/adapters/eigen/EigenDenseMatrixAdapter.hpp"
-#include "sns/adapters/eigen/EigenVectorAdapter.hpp"
+#include "krans/adapters/eigen/EigenDenseMatrixAdapter.hpp"
+#include "krans/adapters/eigen/EigenVectorAdapter.hpp"
 #include <Eigen/Dense>
 #include <cassert>
 #include <cmath>
 #include <iostream>
 
-using namespace sns;
+using namespace krans;
 
 int main() {
   Eigen::MatrixXd A(2, 3);

@@ -1,4 +1,4 @@
-#include "sns/IO/MatrixLoader.hpp"
+#include "krans/IO/MatrixLoader.hpp"
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -6,7 +6,7 @@
 #include <unsupported/Eigen/SparseExtra>
 #include <vector>
 
-namespace sns::io {
+namespace krans::io {
 
 // === Matrix Market (.mtx) ===
 Eigen::SparseMatrix<double> load_matrix_market(const std::string &path) {
@@ -55,4 +55,4 @@ Eigen::SparseMatrix<double> load_ija_triplet_matrix(const std::string &path,
   return mat;
 }
 
-} // namespace sns::io
+} // namespace krans::io

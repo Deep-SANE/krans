@@ -1,9 +1,9 @@
-#include "sns/Utils/Projection.hpp"
+#include "krans/Utils/Projection.hpp"
 #include <cassert>
 #include <stdexcept>
 #include <string>
 
-namespace sns::utils {
+namespace krans::utils {
 
 double residual_norm_Av(const MatrixInterface &A, const VectorInterface &v,
                         VectorInterface &tmp_m) {
@@ -45,4 +45,4 @@ void orthogonal_project_onto_nullspace(const MatrixInterface &A,
   v.add_scaled(tmp_n, -1.0);
 }
 
-} // namespace sns::utils
+} // namespace krans::utils

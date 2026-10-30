@@ -1,9 +1,9 @@
-#include "sns/adapters/eigen/EigenVectorAdapter.hpp"
+#include "krans/adapters/eigen/EigenVectorAdapter.hpp"
 #include <cassert>
 #include <cmath>
 #include <iostream>
 
-using namespace sns;
+using namespace krans;
 
 int main() {
   // v = 0, u = [1,2,3]

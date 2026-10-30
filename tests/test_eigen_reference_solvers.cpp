@@ -1,11 +1,11 @@
-#include "sns/Solvers/EigenCODSolver.hpp"
-#include "sns/Solvers/EigenFullPivLUSolver.hpp"
-#include "sns/Solvers/EigenQRCPSolver.hpp"
-#include "sns/Solvers/EigenSVDSolver.hpp"
+#include "krans/Solvers/EigenCODSolver.hpp"
+#include "krans/Solvers/EigenFullPivLUSolver.hpp"
+#include "krans/Solvers/EigenQRCPSolver.hpp"
+#include "krans/Solvers/EigenSVDSolver.hpp"
 
-#include "sns/adapters/eigen/EigenDenseMatrixAdapter.hpp"
-#include "sns/adapters/eigen/EigenSparseMatrixAdapter.hpp"
-#include "sns/adapters/eigen/EigenVectorAdapter.hpp"
+#include "krans/adapters/eigen/EigenDenseMatrixAdapter.hpp"
+#include "krans/adapters/eigen/EigenSparseMatrixAdapter.hpp"
+#include "krans/adapters/eigen/EigenVectorAdapter.hpp"
 
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
@@ -16,7 +16,7 @@
 #include <stdexcept>
 #include <vector>
 
-using namespace sns;
+using namespace krans;
 
 static const Eigen::VectorXd &view(const VectorInterface &v) {
   return dynamic_cast<const EigenVectorAdapter &>(v).view();

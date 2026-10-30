@@ -1,11 +1,11 @@
-#include "sns/IO/MatrixLoader.hpp"
-#include "sns/adapters/eigen/EigenSparseMatrixAdapter.hpp"
-#include "sns/adapters/eigen/EigenVectorAdapter.hpp"
+#include "krans/IO/MatrixLoader.hpp"
+#include "krans/adapters/eigen/EigenSparseMatrixAdapter.hpp"
+#include "krans/adapters/eigen/EigenVectorAdapter.hpp"
 
 #include <Eigen/Dense>
 #include <iostream>
 
-using namespace sns;
+using namespace krans;
 
 int main() {
   try {

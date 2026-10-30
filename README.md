@@ -1,6 +1,6 @@
-# Sparse Null Space Solver in C++
+# KraNS — Krastenov NullSpace
 
-Master’s thesis project by Bc. Alexandr Krastenov focused on designing a sparse null space solver in C++. 
+KraNS is a matrix-free C++17 library for computing null-space bases of large sparse matrices.
 
 ## Features
 
@@ -29,7 +29,7 @@ Master’s thesis project by Bc. Alexandr Krastenov focused on designing a spars
     - `primme` *(Optional: USED FOR BENCHMARKING)* — High-performance hybrid solver
     - `slepc` *(Optional: USED FOR BENCHMARKING)* — Distributed HPC standard utilizing SVDCYCLIC
 
-- Compact test suite and clean CMake targets (`sns_core`, `sns_eigen`)
+- Compact test suite and clean CMake targets (`krans_core`, `krans_eigen`)
 
 ## Build Instructions
 
@@ -60,6 +60,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
   -DENABLE_SLEPC=ON \
   -DENABLE_SUITESPARSE=ON
 cmake --build build -j
+```
 
 **Tests (Debug):**
 
@@ -90,7 +91,7 @@ Or you can run cross-validation of all available solvers (RREF verification)
 ### Usage:
 ```bash
 cd build/
-./sns_nullspace --solver [svd|qrcp|cod|fullpivlu|cyclic|lobpcg|spectra|primme|slepc|suitesparse] \
+./krans_nullspace --solver [svd|qrcp|cod|fullpivlu|cyclic|lobpcg|spectra|primme|slepc|suitesparse] \
   --input A.(mtx|ija) \
   [--out N.csv] [--report report.json]
   [--tol <rel_tol>]           # direct solvers only (default 1e-12)
@@ -129,13 +130,13 @@ cd build/
 
 1) Direct SVD with tight tolerance:
 ```bash
-./build/sns_nullspace --solver svd --input data/A.ija --tol 1e-12 \
+./build/krans_nullspace --solver svd --input data/A.ija --tol 1e-12 \
   --out N.csv --report report.json
 ```
 
 2) Cyclic: request 3 right-null vectors, export left space, verbose:
 ```bash
-./build/sns_nullspace --solver cyclic --input data/A.ija \
+./build/krans_nullspace --solver cyclic --input data/A.ija \
   --k 3 --ncv 96 --max-restarts 200 \
   --tol-abs 1e-12 --tol-rel 1e-10 \
   --proj-passes 2 --cg-maxit 200 --cg-rel 1e-12 \
@@ -145,7 +146,7 @@ cd build/
 
 3) Custom output paths:
   ```bash
-  ./build/sns_nullspace --solver qrcp --input data/A.mtx \
+  ./build/krans_nullspace --solver qrcp --input data/A.mtx \
   --out results/nullspace.csv --report results/summary.json
   ```
 ### Notes
@@ -153,3 +154,7 @@ cd build/
 - For direct solvers, `--tol` is a relative rank threshold; loosen to detect larger near-null subspaces.
 - For iterative solvers (`cyclic`, `lobpcg`, `primme`, `spectra`), use `--k` to request the number of right-null vectors you want to extract. For `cyclic`, `--left` writes `N_left.csv`.
 - The framework includes a post-processing filter that validates every computed vector against `||Av||_2 < tau` to guarantee physical correctness regardless of the underlying algorithm's algebraic convergence.
+
+## Origin / Credits
+
+KraNS originated in the master’s thesis of Alexandr Krastenov (CTU in Prague, Faculty of Information Technology), originally developed at [gitlab.fit.cvut.cz/krastale/dp-sparse-nullspace](https://gitlab.fit.cvut.cz/krastale/dp-sparse-nullspace).

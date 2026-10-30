@@ -1,5 +1,5 @@
-#include "sns/Utils/GramSchmidt.hpp"
-#include "sns/adapters/eigen/EigenVectorAdapter.hpp"
+#include "krans/Utils/GramSchmidt.hpp"
+#include "krans/adapters/eigen/EigenVectorAdapter.hpp"
 
 #include <cassert>
 #include <cmath>
@@ -8,7 +8,7 @@
 #include <random>
 #include <vector>
 
-using namespace sns;
+using namespace krans;
 
 // helper: build Eigen-backed vector from initializer list
 static std::unique_ptr<VectorInterface>
@@ -40,7 +40,7 @@ int main() {
     Q.emplace_back(make_vec({1, 0, 1}));
     Q.emplace_back(make_vec({0, 1, 1}));
 
-    bool ok = sns::utils::modified_gram_schmidt(Q, 1e-12, true);
+    bool ok = krans::utils::modified_gram_schmidt(Q, 1e-12, true);
     assert(ok);
 
     // Orthonormality: ||q_i|| = 1 and <q_i, q_j> = 0 for i != j
@@ -53,7 +53,7 @@ int main() {
     }
 
     // Diagnostic agrees (maximum off-diagonal inner product ~ 0)
-    const double mx = sns::utils::max_pairwise_abs_dot(Q);
+    const double mx = krans::utils::max_pairwise_abs_dot(Q);
     assert(mx < 1e-12);
   }
 
@@ -62,7 +62,7 @@ int main() {
     std::vector<std::unique_ptr<VectorInterface>> Dep;
     Dep.emplace_back(make_vec({1, 0, 0}));
     Dep.emplace_back(make_vec({2, 0, 0})); // dependent
-    bool ok2 = sns::utils::modified_gram_schmidt(Dep, 1e-12, true);
+    bool ok2 = krans::utils::modified_gram_schmidt(Dep, 1e-12, true);
     assert(!ok2);
   }
 
@@ -75,7 +75,7 @@ int main() {
     // v = (1,2,3); distance to span{e1} is ||(0,2,3)|| = sqrt(13)
     auto v = make_vec({1, 2, 3});
     const double nrm =
-        sns::utils::orthogonalize_against_basis(*v, Basis, 1e-12, true);
+        krans::utils::orthogonalize_against_basis(*v, Basis, 1e-12, true);
     assert(nrm > 0);
     assert(std::fabs(nrm - std::sqrt(13.0)) < 1e-12); // pre-normalization norm
     assert(std::fabs(v->dot(*Basis[0])) < 1e-12);     // orthogonal to basis
@@ -94,12 +94,12 @@ int main() {
     auto v1 = make_vec({1.0, eps, 0.0});
 
     double n1 =
-        sns::utils::orthogonalize_against_basis(*v1, Basis, 1e-12, true);
+        krans::utils::orthogonalize_against_basis(*v1, Basis, 1e-12, true);
     assert(n1 == 0.0);
 
     auto v2 = make_vec({1.0, eps, 0.0});
     double n2 =
-        sns::utils::orthogonalize_against_basis(*v2, Basis, 1e-14, true);
+        krans::utils::orthogonalize_against_basis(*v2, Basis, 1e-14, true);
     assert(n2 > 0.0);
     assert(std::fabs(n2 - std::fabs(eps)) < 1e-15); // close to eps
     assert(std::fabs(v2->norm() - 1.0) < 1e-12);
@@ -114,7 +114,7 @@ int main() {
     E.emplace_back(make_vec({0, 0, 1}));
     for (auto &q : E)
       q->normalize(); // already ONB
-    const double mx = sns::utils::max_pairwise_abs_dot(E);
+    const double mx = krans::utils::max_pairwise_abs_dot(E);
     assert(mx < 1e-15);
   }
 
@@ -126,7 +126,7 @@ int main() {
     for (std::size_t i = 0; i < k; ++i)
       V.emplace_back(make_rand_vec(n, 100 + static_cast<unsigned>(i)));
 
-    bool ok = sns::utils::modified_gram_schmidt(V, 1e-12, true);
+    bool ok = krans::utils::modified_gram_schmidt(V, 1e-12, true);
     assert(ok);
 
     // Check orthonormality with a slightly looser tolerance (random rounding)

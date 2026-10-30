@@ -5,16 +5,16 @@
 #include <chrono>
 #include <Eigen/Dense>
 
-#include "sns/MatrixInterface.hpp"
-#include "sns/VectorInterface.hpp"
-#include "sns/VectorFactory.hpp"
-#include "sns/IO/MatrixLoader.hpp"
-#include "sns/adapters/eigen/EigenSparseMatrixRefAdapter.hpp"
-#include "sns/adapters/eigen/EigenVectorFactory.hpp"
-#include "sns/Solvers/LOBPCGSolver.hpp"
-#include "sns/Solvers/CyclicLanczosSolver.hpp"
+#include "krans/MatrixInterface.hpp"
+#include "krans/VectorInterface.hpp"
+#include "krans/VectorFactory.hpp"
+#include "krans/IO/MatrixLoader.hpp"
+#include "krans/adapters/eigen/EigenSparseMatrixRefAdapter.hpp"
+#include "krans/adapters/eigen/EigenVectorFactory.hpp"
+#include "krans/Solvers/LOBPCGSolver.hpp"
+#include "krans/Solvers/CyclicLanczosSolver.hpp"
 
-using namespace sns;
+using namespace krans;
 
 // Helper to check orthogonality
 double check_orthogonality(const std::vector<std::unique_ptr<VectorInterface>>& Z) {
@@ -87,7 +87,7 @@ int main(int argc, char** argv) {
             opt.tol_abs = 1e-12;
             opt.tol_rel = 1e-10;
             opt.use_harmonic = true;
-            opt.reorth = sns::solvers::ReorthMode::Double;
+            opt.reorth = krans::solvers::ReorthMode::Double;
 
             basis = solvers::find_nullspace_cyclic_lanczos(A, vf, opt);
         }

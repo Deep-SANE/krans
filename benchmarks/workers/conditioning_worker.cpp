@@ -8,23 +8,23 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 
-#include "sns/MatrixInterface.hpp"
-#include "sns/VectorInterface.hpp"
-#include "sns/VectorFactory.hpp"
-#include "sns/IO/MatrixLoader.hpp"
-#include "sns/adapters/eigen/EigenSparseMatrixRefAdapter.hpp"
-#include "sns/adapters/eigen/EigenVectorFactory.hpp"
-#include "sns/Solvers/LOBPCGSolver.hpp"
-#include "sns/Solvers/CyclicLanczosSolver.hpp"
+#include "krans/MatrixInterface.hpp"
+#include "krans/VectorInterface.hpp"
+#include "krans/VectorFactory.hpp"
+#include "krans/IO/MatrixLoader.hpp"
+#include "krans/adapters/eigen/EigenSparseMatrixRefAdapter.hpp"
+#include "krans/adapters/eigen/EigenVectorFactory.hpp"
+#include "krans/Solvers/LOBPCGSolver.hpp"
+#include "krans/Solvers/CyclicLanczosSolver.hpp"
 
-#ifdef SNS_USE_SPECTRA
-#include "sns/Solvers/SpectraSolver.hpp"
+#ifdef KRANS_USE_SPECTRA
+#include "krans/Solvers/SpectraSolver.hpp"
 #endif
-#ifdef SNS_USE_PRIMME
-#include "sns/Solvers/PrimmeSolver.hpp"
+#ifdef KRANS_USE_PRIMME
+#include "krans/Solvers/PrimmeSolver.hpp"
 #endif
 
-using namespace sns;
+using namespace krans;
 
 int main(int argc, char** argv) {
     if (argc != 4) {
@@ -59,14 +59,14 @@ int main(int argc, char** argv) {
         std::vector<std::unique_ptr<VectorInterface>> basis;
         try {
             if (name == "External_Spectra") {
-#ifdef SNS_USE_SPECTRA
+#ifdef KRANS_USE_SPECTRA
                 std::size_t ncv = std::max<std::size_t>(60, target_k * 4);
                 basis = solvers::find_nullspace_spectra(A, vf, target_k, ncv, target_tol);
 #else
                 throw std::runtime_error("Spectra not enabled");
 #endif
             } else if (name == "External_PRIMME") {
-#ifdef SNS_USE_PRIMME
+#ifdef KRANS_USE_PRIMME
                 basis = solvers::find_nullspace_primme(A, vf, target_k, target_tol);
 #else
                 throw std::runtime_error("PRIMME not enabled");
@@ -82,7 +82,7 @@ int main(int argc, char** argv) {
                 opt.tol_rel = 0.0;
                 opt.cg_rel_tol = target_tol * 0.1;
                 opt.use_harmonic = true;                     
-                opt.reorth = sns::solvers::ReorthMode::Double;
+                opt.reorth = krans::solvers::ReorthMode::Double;
                 opt.prescreen_factor = 100.0;
                 opt.stagnation_restarts = 50;
                 opt.verbose = false;

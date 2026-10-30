@@ -1,11 +1,11 @@
-#include "sns/Solvers/EigenSVDSolver.hpp"
-#include "sns/Solvers/CommonDenseUtils.hpp"
+#include "krans/Solvers/EigenSVDSolver.hpp"
+#include "krans/Solvers/CommonDenseUtils.hpp"
 
 #include <Eigen/Dense>
 #include <Eigen/SVD>
 #include <limits>
 
-namespace sns::solvers {
+namespace krans::solvers {
 
 std::vector<std::unique_ptr<VectorInterface>>
 find_nullspace_svd(const MatrixInterface &A,
@@ -68,4 +68,4 @@ find_nullspace_svd(const MatrixInterface &A,
   return detail::wrap_and_optionally_orthonormalize(N, vf, true);
 }
 
-} // namespace sns::solvers
+} // namespace krans::solvers

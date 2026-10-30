@@ -1,4 +1,4 @@
-#include "sns/Utils/EigenSmallSVD.hpp"
+#include "krans/Utils/EigenSmallSVD.hpp"
 #include <Eigen/Dense>
 #include <cassert>
 #include <cmath>
@@ -6,8 +6,8 @@
 #include <stdexcept>
 #include <vector>
 
-using sns::utils::EigenSmallSVD;
-using sns::utils::SmallDenseSVD;
+using krans::utils::EigenSmallSVD;
+using krans::utils::SmallDenseSVD;
 
 static double max_abs_diff(const std::vector<double> &a,
                            const std::vector<double> &b) {

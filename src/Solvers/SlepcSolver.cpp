@@ -1,6 +1,6 @@
-#ifdef SNS_USE_SLEPC
+#ifdef KRANS_USE_SLEPC
 
-#include "sns/Solvers/SlepcSolver.hpp"
+#include "krans/Solvers/SlepcSolver.hpp"
 #include <slepcsvd.h>
 #include <vector>
 #include <memory>
@@ -8,7 +8,7 @@
 #include <cstring>
 #include <stdexcept>
 
-namespace sns::solvers {
+namespace krans::solvers {
     
 class SlepcManager {
 public:
@@ -157,20 +157,20 @@ find_nullspace_slepc(const MatrixInterface &A, const VectorFactory &vf,
   return result;
 }
 
-} // namespace sns::solvers
+} // namespace krans::solvers
 
-#else // SNS_USE_SLEPC
+#else // KRANS_USE_SLEPC
 
-#include "sns/Solvers/SlepcSolver.hpp"
+#include "krans/Solvers/SlepcSolver.hpp"
 #include <stdexcept>
 
-namespace sns::solvers {
+namespace krans::solvers {
 
 std::vector<std::unique_ptr<VectorInterface>>
 find_nullspace_slepc(const MatrixInterface&, const VectorFactory&, std::size_t, double) {
-    throw std::runtime_error("find_nullspace_slepc: SNS was built without SLEPc support.");
+    throw std::runtime_error("find_nullspace_slepc: KraNS was built without SLEPc support.");
 }
 
-} // namespace sns::solvers
+} // namespace krans::solvers
 
-#endif // SNS_USE_SLEPC
+#endif // KRANS_USE_SLEPC

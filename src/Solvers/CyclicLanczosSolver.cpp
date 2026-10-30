@@ -1,4 +1,4 @@
-#include "sns/Solvers/CyclicLanczosSolver.hpp"
+#include "krans/Solvers/CyclicLanczosSolver.hpp"
 
 #include <Eigen/Dense>
 #include <algorithm>
@@ -9,10 +9,10 @@
 #include <numeric>
 #include <utility>
 
-#include "sns/Utils/GramSchmidt.hpp"
-#include "sns/Utils/Projection.hpp"
+#include "krans/Utils/GramSchmidt.hpp"
+#include "krans/Utils/Projection.hpp"
 
-namespace sns::solvers {
+namespace krans::solvers {
 
 // ---------------- Block helpers: z = [x; y] ----------------------------------
 struct BlockVec {
@@ -70,7 +70,7 @@ static inline void reorth_block(BlockVec &w, const std::vector<BlockVec> &V,
 static inline double residual_Av(const MatrixInterface &A,
                                  const VectorInterface &v,
                                  VectorInterface &tmp_m) {
-  return sns::utils::residual_norm_Av(A, v, tmp_m);
+  return krans::utils::residual_norm_Av(A, v, tmp_m);
 }
 
 static inline void apply_AAt(const MatrixInterface &A,
@@ -161,7 +161,7 @@ static inline void gradient_nullspace_step(const MatrixInterface &A,
                                            VectorInterface &v,
                                            VectorInterface &tmp_m,
                                            VectorInterface &tmp_n, double tau) {
-  sns::utils::gradient_nullspace_step(A, v, tmp_m, tmp_n, tau);
+  krans::utils::gradient_nullspace_step(A, v, tmp_m, tmp_n, tau);
 }
 
 // -------- Randomized fallback: project + gradient ----------------------------
@@ -623,4 +623,4 @@ find_nullspace_cyclic_lanczos(const MatrixInterface &A, const VectorFactory &vf,
   return std::move(R.right_null);
 }
 
-} // namespace sns::solvers
+} // namespace krans::solvers

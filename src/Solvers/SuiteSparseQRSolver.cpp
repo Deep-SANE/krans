@@ -1,13 +1,13 @@
-#ifdef SNS_USE_SUITESPARSE
+#ifdef KRANS_USE_SUITESPARSE
 
-#include "sns/Solvers/SuiteSparseQRSolver.hpp"
-#include "sns/adapters/eigen/EigenVectorAdapter.hpp"
+#include "krans/Solvers/SuiteSparseQRSolver.hpp"
+#include "krans/adapters/eigen/EigenVectorAdapter.hpp"
 #include <Eigen/Sparse>
 #include <Eigen/SPQRSupport>
 #include <vector>
 #include <iostream>
 
-namespace sns::solvers {
+namespace krans::solvers {
 
 SuiteSparseQRSolver::SuiteSparseQRSolver(const EigenSparseMatrixAdapterInterface &A) : A_(A) {}
 
@@ -93,21 +93,21 @@ find_nullspace_suitesparse_qr(const MatrixInterface &A, const VectorFactory &vf,
   }
 }
 
-} // namespace sns::solvers
+} // namespace krans::solvers
 
-#else // SNS_USE_SUITESPARSE
+#else // KRANS_USE_SUITESPARSE
 
-#include "sns/Solvers/SuiteSparseQRSolver.hpp"
+#include "krans/Solvers/SuiteSparseQRSolver.hpp"
 #include <stdexcept>
 
-namespace sns::solvers {
+namespace krans::solvers {
 
 std::vector<std::unique_ptr<VectorInterface>>
 find_nullspace_suitesparse_qr(const MatrixInterface&, const VectorFactory&, double) {
-    throw std::runtime_error("find_nullspace_suitesparse_qr: SNS was built without SuiteSparse support.");
+    throw std::runtime_error("find_nullspace_suitesparse_qr: KraNS was built without SuiteSparse support.");
 }
 
-} // namespace sns::solvers
+} // namespace krans::solvers
 
-#endif // SNS_USE_SUITESPARSE
+#endif // KRANS_USE_SUITESPARSE
 

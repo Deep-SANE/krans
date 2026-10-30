@@ -1,10 +1,10 @@
-#include "sns/Solvers/EigenCODSolver.hpp"
-#include "sns/Solvers/CommonDenseUtils.hpp"
+#include "krans/Solvers/EigenCODSolver.hpp"
+#include "krans/Solvers/CommonDenseUtils.hpp"
 
 #include <Eigen/Dense>
 #include <limits>
 
-namespace sns::solvers {
+namespace krans::solvers {
 
 std::vector<std::unique_ptr<VectorInterface>>
 find_nullspace_cod(const MatrixInterface &A,
@@ -55,4 +55,4 @@ find_nullspace_cod(const MatrixInterface &A,
   return detail::wrap_and_optionally_orthonormalize(N, vf, true);
 }
 
-} // namespace sns::solvers
+} // namespace krans::solvers

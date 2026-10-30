@@ -1,11 +1,11 @@
-#include "sns/adapters/eigen/EigenSparseMatrixRefAdapter.hpp"
-#include "sns/adapters/eigen/EigenVectorAdapter.hpp"
-#include "sns/adapters/eigen/EigenVectorFactory.hpp"
+#include "krans/adapters/eigen/EigenSparseMatrixRefAdapter.hpp"
+#include "krans/adapters/eigen/EigenVectorAdapter.hpp"
+#include "krans/adapters/eigen/EigenVectorFactory.hpp"
 #include <Eigen/Sparse>
 #include <iostream>
 #include <cassert>
 
-using namespace sns;
+using namespace krans;
 
 int main() {
     // Create a simple sparse matrix

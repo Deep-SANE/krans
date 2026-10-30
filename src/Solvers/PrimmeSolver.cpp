@@ -1,7 +1,7 @@
-#ifdef SNS_USE_PRIMME
+#ifdef KRANS_USE_PRIMME
 
-#include "sns/Solvers/PrimmeSolver.hpp"
-#include "sns/Utils/GramSchmidt.hpp"
+#include "krans/Solvers/PrimmeSolver.hpp"
+#include "krans/Utils/GramSchmidt.hpp"
 #include <primme.h>
 #include <vector>
 #include <memory>
@@ -11,7 +11,7 @@
 #include <algorithm>
 #include <random>
 
-namespace sns::solvers {
+namespace krans::solvers {
 
 struct PrimmeSvdsContext {
   const MatrixInterface *A;
@@ -135,7 +135,7 @@ find_nullspace_primme(const MatrixInterface &A, const VectorFactory &vf,
 
       // Orthogonalize and remove duplicates/dependent vectors
       if (!accumulated_basis.empty()) {
-          (void)sns::utils::modified_gram_schmidt(accumulated_basis, 1e-12, true);
+          (void)krans::utils::modified_gram_schmidt(accumulated_basis, 1e-12, true);
           // MGS will shrink the vector if it's dependent, we should prune those
           accumulated_basis.erase(
               std::remove_if(accumulated_basis.begin(), accumulated_basis.end(),
@@ -157,20 +157,20 @@ find_nullspace_primme(const MatrixInterface &A, const VectorFactory &vf,
   return accumulated_basis;
 }
 
-} // namespace sns::solvers
+} // namespace krans::solvers
 
-#else // SNS_USE_PRIMME
+#else // KRANS_USE_PRIMME
 
-#include "sns/Solvers/PrimmeSolver.hpp"
+#include "krans/Solvers/PrimmeSolver.hpp"
 #include <stdexcept>
 
-namespace sns::solvers {
+namespace krans::solvers {
 
 std::vector<std::unique_ptr<VectorInterface>>
 find_nullspace_primme(const MatrixInterface&, const VectorFactory&, std::size_t, double) {
-    throw std::runtime_error("find_nullspace_primme: SNS was built without PRIMME support.");
+    throw std::runtime_error("find_nullspace_primme: KraNS was built without PRIMME support.");
 }
 
-} // namespace sns::solvers
+} // namespace krans::solvers
 
-#endif // SNS_USE_PRIMME
+#endif // KRANS_USE_PRIMME

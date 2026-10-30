@@ -1,10 +1,10 @@
 // test_lobpcg.cpp
-#include "sns/IO/MatrixLoader.hpp"
-#include "sns/Solvers/LOBPCGSolver.hpp"
-#include "sns/Utils/GramSchmidt.hpp"
-#include "sns/Utils/Projection.hpp"
-#include "sns/adapters/eigen/EigenSparseMatrixAdapter.hpp"
-#include "sns/adapters/eigen/EigenVectorFactory.hpp"
+#include "krans/IO/MatrixLoader.hpp"
+#include "krans/Solvers/LOBPCGSolver.hpp"
+#include "krans/Utils/GramSchmidt.hpp"
+#include "krans/Utils/Projection.hpp"
+#include "krans/adapters/eigen/EigenSparseMatrixAdapter.hpp"
+#include "krans/adapters/eigen/EigenVectorFactory.hpp"
 
 #include <Eigen/Sparse>
 
@@ -17,7 +17,7 @@
 #include <string>
 #include <vector>
 
-using namespace sns;
+using namespace krans;
 using Clock = std::chrono::steady_clock;
 
 // A lightweight wrapper that counts multiplies while delegating to an existing
@@ -73,7 +73,7 @@ project_onto_span(const std::vector<std::unique_ptr<VectorInterface>> &basis,
 
 static void print_header(const std::string &name, std::size_t m, std::size_t n,
                          std::size_t nnz,
-                         const sns::solvers::LOBPCGOptions &o) {
+                         const krans::solvers::LOBPCGOptions &o) {
   std::cout << "---- " << name
             << " ---------------------------------------------\n";
   std::cout << "dims: " << m << " x " << n << "   nnz=" << nnz << "\n";
@@ -112,7 +112,7 @@ int main() {
     CountingMatrixAdapter C(M);
     EigenVectorFactory F(static_cast<std::size_t>(A.cols()));
 
-    sns::solvers::LOBPCGOptions opt;
+    krans::solvers::LOBPCGOptions opt;
     opt.nev = 1;
     opt.block_size = 4;
     opt.max_iters = 200;
@@ -129,7 +129,7 @@ int main() {
                  (std::size_t)A.cols(), (std::size_t)A.nonZeros(), opt);
 
     const auto t0 = Clock::now();
-    auto R = sns::solvers::find_nullspace_lobpcg_ex(C, F, opt);
+    auto R = krans::solvers::find_nullspace_lobpcg_ex(C, F, opt);
     const auto t1 = Clock::now();
     const double sec = std::chrono::duration<double>(t1 - t0).count();
     print_perf(C, sec);
@@ -150,14 +150,14 @@ int main() {
   // ==================== Test 2: IJA mat1.ija (rank=100, nullity=5) ==========
   {
     try {
-      S A1 = sns::io::load_ija_triplet_matrix("data/mat1.ija", -1, -1);
+      S A1 = krans::io::load_ija_triplet_matrix("data/mat1.ija", -1, -1);
       A1.makeCompressed();
 
       EigenSparseMatrixAdapter M1(A1);
       CountingMatrixAdapter C1(M1);
       EigenVectorFactory F1((std::size_t)A1.cols());
 
-      sns::solvers::LOBPCGOptions opt1;
+      krans::solvers::LOBPCGOptions opt1;
       opt1.nev = 5;
       opt1.block_size = 12; // bs >= nev; small 3k subspace → fast tiny GEPs
       opt1.max_iters = 500;
@@ -209,7 +209,7 @@ int main() {
                    (std::size_t)A1.cols(), (std::size_t)A1.nonZeros(), opt1);
 
       const auto t0 = Clock::now();
-      auto R = sns::solvers::find_nullspace_lobpcg_ex(C1, F1, opt1);
+      auto R = krans::solvers::find_nullspace_lobpcg_ex(C1, F1, opt1);
       const auto t1 = Clock::now();
       const double sec = std::chrono::duration<double>(t1 - t0).count();
       print_perf(C1, sec);
@@ -231,7 +231,7 @@ int main() {
                   << "\n";
         assert(ri <= 1e-8);
       }
-      const double ortho1 = sns::utils::max_pairwise_abs_dot(R.right_null);
+      const double ortho1 = krans::utils::max_pairwise_abs_dot(R.right_null);
       std::cout << "[mat1] max pairwise |dot| = " << std::scientific << ortho1
                 << "\n";
       assert(ortho1 <= 1e-8);
@@ -260,7 +260,7 @@ int main() {
     CountingMatrixAdapter CI(MI);
     EigenVectorFactory F(3);
 
-    sns::solvers::LOBPCGOptions opt;
+    krans::solvers::LOBPCGOptions opt;
     opt.nev = 1;
     opt.block_size = 4;
     opt.max_iters = 100;
@@ -277,7 +277,7 @@ int main() {
                  (std::size_t)I.cols(), (std::size_t)I.nonZeros(), opt);
 
     const auto t0 = Clock::now();
-    auto R = sns::solvers::find_nullspace_lobpcg_ex(CI, F, opt);
+    auto R = krans::solvers::find_nullspace_lobpcg_ex(CI, F, opt);
     const auto t1 = Clock::now();
     const double sec = std::chrono::duration<double>(t1 - t0).count();
     print_perf(CI, sec);
@@ -290,7 +290,7 @@ int main() {
   // ==================== Test 4: IJA mat2.ija (rank=5425, nullity=15) ========
   {
     try {
-      S A2 = sns::io::load_ija_triplet_matrix("data/mat2.ija", -1, -1);
+      S A2 = krans::io::load_ija_triplet_matrix("data/mat2.ija", -1, -1);
       A2.makeCompressed();
 
       EigenSparseMatrixAdapter M2(A2);
@@ -300,7 +300,7 @@ int main() {
       const int rank_known = 5425;
       const int nullity_known = 15;
 
-      sns::solvers::LOBPCGOptions opt2;
+      krans::solvers::LOBPCGOptions opt2;
       opt2.nev = nullity_known;
       opt2.block_size = std::max<std::size_t>(nullity_known, 24);
       opt2.max_iters = 1200;
@@ -350,7 +350,7 @@ int main() {
                    (std::size_t)A2.cols(), (std::size_t)A2.nonZeros(), opt2);
 
       const auto t0 = Clock::now();
-      auto R = sns::solvers::find_nullspace_lobpcg_ex(C2, F2, opt2);
+      auto R = krans::solvers::find_nullspace_lobpcg_ex(C2, F2, opt2);
       const auto t1 = Clock::now();
       const double sec = std::chrono::duration<double>(t1 - t0).count();
       print_perf(C2, sec);
@@ -372,7 +372,7 @@ int main() {
                   << "\n";
         assert(ri <= 1e-9);
       }
-      const double ortho2 = sns::utils::max_pairwise_abs_dot(R.right_null);
+      const double ortho2 = krans::utils::max_pairwise_abs_dot(R.right_null);
       std::cout << "[mat2] max pairwise |dot| = " << std::scientific << ortho2
                 << "\n";
       assert(ortho2 <= 1e-8);
@@ -406,7 +406,7 @@ int main() {
     CountingMatrixAdapter C(M);
     EigenVectorFactory F(static_cast<std::size_t>(A.cols()));
 
-    sns::solvers::LOBPCGOptions opt;
+    krans::solvers::LOBPCGOptions opt;
     opt.nev = 1;
     opt.block_size = 6;
     opt.max_iters = 300;
@@ -424,7 +424,7 @@ int main() {
                  (std::size_t)A.nonZeros(), opt);
 
     const auto t0 = Clock::now();
-    auto R = sns::solvers::find_nullspace_lobpcg_ex(C, F, opt);
+    auto R = krans::solvers::find_nullspace_lobpcg_ex(C, F, opt);
     const auto t1 = Clock::now();
     const double sec = std::chrono::duration<double>(t1 - t0).count();
     print_perf(C, sec);

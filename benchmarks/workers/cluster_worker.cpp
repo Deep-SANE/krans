@@ -11,29 +11,29 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 
-#include "sns/MatrixInterface.hpp"
-#include "sns/VectorInterface.hpp"
-#include "sns/VectorFactory.hpp"
-#include "sns/IO/MatrixLoader.hpp"
-#include "sns/adapters/eigen/EigenSparseMatrixRefAdapter.hpp"
-#include "sns/adapters/eigen/EigenVectorFactory.hpp"
+#include "krans/MatrixInterface.hpp"
+#include "krans/VectorInterface.hpp"
+#include "krans/VectorFactory.hpp"
+#include "krans/IO/MatrixLoader.hpp"
+#include "krans/adapters/eigen/EigenSparseMatrixRefAdapter.hpp"
+#include "krans/adapters/eigen/EigenVectorFactory.hpp"
 
-#include "sns/Solvers/LOBPCGSolver.hpp"
-#include "sns/Solvers/CyclicLanczosSolver.hpp"
-#include "sns/Solvers/EigenQRCPSolver.hpp"
-#include "sns/Solvers/EigenSVDSolver.hpp"
+#include "krans/Solvers/LOBPCGSolver.hpp"
+#include "krans/Solvers/CyclicLanczosSolver.hpp"
+#include "krans/Solvers/EigenQRCPSolver.hpp"
+#include "krans/Solvers/EigenSVDSolver.hpp"
 
-#ifdef SNS_USE_SPECTRA
-#include "sns/Solvers/SpectraSolver.hpp"
+#ifdef KRANS_USE_SPECTRA
+#include "krans/Solvers/SpectraSolver.hpp"
 #endif
-#ifdef SNS_USE_PRIMME
-#include "sns/Solvers/PrimmeSolver.hpp"
+#ifdef KRANS_USE_PRIMME
+#include "krans/Solvers/PrimmeSolver.hpp"
 #endif
-#ifdef SNS_USE_SLEPC
-#include "sns/Solvers/SlepcSolver.hpp"
+#ifdef KRANS_USE_SLEPC
+#include "krans/Solvers/SlepcSolver.hpp"
 #endif
 
-using namespace sns;
+using namespace krans;
 
 // ==========================================
 // PEAK MEMORY TRACKER (Gigabytes)
@@ -146,7 +146,7 @@ int main(int argc, char** argv) {
             opt.tol_abs = tol_abs;
             
             opt.use_harmonic = use_harmonic;
-            opt.reorth = sns::solvers::ReorthMode::Double; // "Twice is enough"
+            opt.reorth = krans::solvers::ReorthMode::Double; // "Twice is enough"
             basis = solvers::find_nullspace_cyclic_lanczos(A, vf, opt);
 
         } else if (solver == "qrcp") {
@@ -156,21 +156,21 @@ int main(int argc, char** argv) {
             basis = solvers::find_nullspace_svd(A, vf, tol_rel);
 
         } else if (solver == "slepc") {
-#ifdef SNS_USE_SLEPC
+#ifdef KRANS_USE_SLEPC
             // Pass the strict 1e-10 relative tolerance to SLEPc
             basis = solvers::find_nullspace_slepc(A, vf, target_k, tol_rel);
 #else
             throw std::runtime_error("SLEPc not compiled");
 #endif
         } else if (solver == "primme") {
-#ifdef SNS_USE_PRIMME
+#ifdef KRANS_USE_PRIMME
             // Pass the strict 1e-10 relative tolerance to PRIMME
             basis = solvers::find_nullspace_primme(A, vf, target_k, tol_rel);
 #else
             throw std::runtime_error("PRIMME not compiled");
 #endif
         } else if (solver == "spectra") {
-#ifdef SNS_USE_SPECTRA
+#ifdef KRANS_USE_SPECTRA
             std::size_t ncv = std::max<std::size_t>(60, target_k * 3);
             basis = solvers::find_nullspace_spectra(A, vf, target_k, ncv, tol_rel);
 #else

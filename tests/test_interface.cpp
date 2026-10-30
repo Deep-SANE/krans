@@ -1,12 +1,12 @@
-#include "sns/MatrixInterface.hpp"
-#include "sns/VectorInterface.hpp"
+#include "krans/MatrixInterface.hpp"
+#include "krans/VectorInterface.hpp"
 #include <cassert>
 #include <cmath>
 #include <iostream>
 #include <memory>
 #include <vector>
 
-using namespace sns;
+using namespace krans;
 
 // === Simple Mock Vector ===
 class MockVector : public VectorInterface {

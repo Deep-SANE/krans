@@ -1,8 +1,8 @@
-#include "sns/adapters/universal/StdVectorAdapter.hpp"
-#include "sns/adapters/universal/StdVectorFactory.hpp"
-#include "sns/adapters/universal/StdMatrixAdapter.hpp"
-#include "sns/VectorInterface.hpp"
-#include "sns/Solvers/LOBPCGSolver.hpp" 
+#include "krans/adapters/universal/StdVectorAdapter.hpp"
+#include "krans/adapters/universal/StdVectorFactory.hpp"
+#include "krans/adapters/universal/StdMatrixAdapter.hpp"
+#include "krans/VectorInterface.hpp"
+#include "krans/Solvers/LOBPCGSolver.hpp" 
 
 #include <cassert>
 #include <cmath>
@@ -33,27 +33,27 @@ int main() {
             y[2] = x[0] + x[1];
         };
 
-        sns::universal::StdMatrixAdapter A_std(2, 3, mult, mult_t);
-        sns::universal::StdVectorFactory vf_e2e(3);
+        krans::universal::StdMatrixAdapter A_std(2, 3, mult, mult_t);
+        krans::universal::StdVectorFactory vf_e2e(3);
 
-        sns::solvers::LOBPCGOptions opt;
+        krans::solvers::LOBPCGOptions opt;
         opt.nev = 1;
         opt.block_size = 4;
         opt.max_iters = 1000;
         opt.tol_rel = TOL;
         opt.verbose = false;
 
-        sns::solvers::LOBPCGResult result = 
-            sns::solvers::find_nullspace_lobpcg_ex(A_std, vf_e2e, opt);
+        krans::solvers::LOBPCGResult result = 
+            krans::solvers::find_nullspace_lobpcg_ex(A_std, vf_e2e, opt);
 
         assert(result.right_null.size() == 1);
         
         // Check residual: A * v = 0
-        sns::universal::StdVectorAdapter tmp_m(2);
+        krans::universal::StdVectorAdapter tmp_m(2);
         A_std.multiply(*result.right_null[0], tmp_m);
         assert(tmp_m.norm() < 100 * TOL);
 
-        const auto* res_vec_adapter = dynamic_cast<const sns::universal::StdVectorAdapter*>(result.right_null[0].get());
+        const auto* res_vec_adapter = dynamic_cast<const krans::universal::StdVectorAdapter*>(result.right_null[0].get());
         const std::vector<double>& v_view = res_vec_adapter->view();
         std::cout << "Found null vector: [" << v_view[0] << ", " << v_view[1] << ", " << v_view[2] << "]\n";
 

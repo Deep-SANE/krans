@@ -1,4 +1,4 @@
-#include "sns/Solvers/LOBPCGSolver.hpp"
+#include "krans/Solvers/LOBPCGSolver.hpp"
 
 #include <Eigen/Dense>
 #include <algorithm>
@@ -10,10 +10,10 @@
 #include <numeric>
 #include <utility>
 
-#include "sns/Utils/GramSchmidt.hpp"
-#include "sns/Utils/Projection.hpp"
+#include "krans/Utils/GramSchmidt.hpp"
+#include "krans/Utils/Projection.hpp"
 
-namespace sns::solvers {
+namespace krans::solvers {
 
 // ----------------- Small helpers for block algebra (on VectorInterface) -----
 
@@ -151,7 +151,7 @@ static inline bool orthonormalize_block(Block &X,
   tmp.reserve(X.size());
   for (auto &p : X)
     tmp.push_back(p->clone());
-  const bool indep = sns::utils::modified_gram_schmidt(tmp, tol, reorth);
+  const bool indep = krans::utils::modified_gram_schmidt(tmp, tol, reorth);
   if (!indep)
     return false;
   for (std::size_t j = 0; j < X.size(); ++j)
@@ -181,7 +181,7 @@ static inline double estimate_fro_norm(const MatrixInterface &A,
 static inline double residual_Av(const MatrixInterface &A,
                                  const VectorInterface &v,
                                  VectorInterface &tmp_m) {
-  return sns::utils::residual_norm_Av(A, v, tmp_m);
+  return krans::utils::residual_norm_Av(A, v, tmp_m);
 }
 
 // Orthogonalize a single vector vs. a basis (no normalization).
@@ -297,7 +297,7 @@ block_rr_polish(const MatrixInterface &A, const VectorFactory &vf,
   auto g = V.front()->clone();          // direction (N v or M^{-1} N v)
   auto tmp = vf.create_zero_of_size(m); // A * direction
 
-  (void)sns::utils::modified_gram_schmidt(V, 1e-14, true);
+  (void)krans::utils::modified_gram_schmidt(V, 1e-14, true);
 
   for (int sweep = 0; sweep < max_sweeps; ++sweep) {
     double max_res = 0.0;
@@ -387,7 +387,7 @@ block_rr_polish(const MatrixInterface &A, const VectorFactory &vf,
             V[i]->scale(1.0 / nv);
         }
       }
-      (void)sns::utils::modified_gram_schmidt(V, 1e-14, true);
+      (void)krans::utils::modified_gram_schmidt(V, 1e-14, true);
 
       // try to enrich so the RR step has leverage next sweep
       const int enrich = std::min<int>(2, (int)k);
@@ -423,7 +423,7 @@ block_rr_polish(const MatrixInterface &A, const VectorFactory &vf,
     Vtmp.reserve(k);
     for (auto &p : Vnew)
       Vtmp.push_back(p->clone());
-    (void)sns::utils::modified_gram_schmidt(Vtmp, 1e-14, true);
+    (void)krans::utils::modified_gram_schmidt(Vtmp, 1e-14, true);
     for (std::size_t i = 0; i < k; ++i)
       V[i]->copy_from(*Vtmp[i]);
 
@@ -436,7 +436,7 @@ block_rr_polish(const MatrixInterface &A, const VectorFactory &vf,
       break;
   }
 
-  (void)sns::utils::modified_gram_schmidt(V, 1e-14, true);
+  (void)krans::utils::modified_gram_schmidt(V, 1e-14, true);
 }
 
 // ----------------------------- Main solver -----------------------------------
@@ -793,7 +793,7 @@ LOBPCGResult find_nullspace_lobpcg_ex(const MatrixInterface &A,
                                /*max_iters=*/120);
     }
 
-    (void)sns::utils::modified_gram_schmidt(R.right_null, 1e-14, true);
+    (void)krans::utils::modified_gram_schmidt(R.right_null, 1e-14, true);
   }
 
   return R;
@@ -807,4 +807,4 @@ find_nullspace_lobpcg(const MatrixInterface &A, const VectorFactory &vf,
   return std::move(R.right_null);
 }
 
-} // namespace sns::solvers
+} // namespace krans::solvers

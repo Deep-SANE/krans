@@ -1,8 +1,8 @@
-#include "sns/Utils/EigenSmallSVD.hpp"
+#include "krans/Utils/EigenSmallSVD.hpp"
 #include <Eigen/Dense>
 #include <stdexcept>
 
-namespace sns::utils {
+namespace krans::utils {
 
 void EigenSmallSVD::svd_dense(
     int m, const std::vector<double> &Bflat, std::vector<double> &svals,
@@ -36,4 +36,4 @@ void EigenSmallSVD::svd_dense(
   }
 }
 
-} // namespace sns::utils
+} // namespace krans::utils
