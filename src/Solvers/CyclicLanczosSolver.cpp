@@ -456,9 +456,15 @@ find_nullspace_cyclic_lanczos_ex(const MatrixInterface &A,
       }
 
       // POLISH: projector passes with (preconditioned) CG
+      std::size_t cg_its = 0;
       for (int pass = 0; pass < std::max(1, opt.projector_passes); ++pass) {
-        cg_normal_eq_prec(A, vf, *tmp_m, *w_m, opt.precond_AAt, opt.cg_maxit,
-                          opt.cg_rel_tol, opt.cg_breakdown_tol);
+        cg_its = cg_normal_eq_prec(A, vf, *tmp_m, *w_m, opt.precond_AAt,
+                                   opt.cg_maxit, opt.cg_rel_tol,
+                                   opt.cg_breakdown_tol)
+                     .first;
+        ++R.cg_solves;
+        if (cg_its >= opt.cg_maxit)
+          ++R.cg_maxit_hits;
         A.multiply_transpose(*w_m, *tmp_n);
         v->add_scaled(*tmp_n, -1.0);
 
@@ -486,7 +492,8 @@ find_nullspace_cyclic_lanczos_ex(const MatrixInterface &A,
       if (opt.verbose) {
         std::cout << "[Cyclic] restart=" << restart
                   << "  ||A v|| (polished)=" << resNull
-                  << "  accept_thr=" << accept_thresh << "\n";
+                  << "  accept_thr=" << accept_thresh << "  cg_its=" << cg_its
+                  << "/" << opt.cg_maxit << "\n";
       }
 
       if (resNull <= accept_thresh) {
@@ -527,8 +534,13 @@ find_nullspace_cyclic_lanczos_ex(const MatrixInterface &A,
       auto w_m2 = vf.create_zero_of_size(m);
       auto tmp_n2 = vf.create_zero_of_size(n);
       A.multiply(*vprobe, *tmp_m);
-      cg_normal_eq_prec(A, vf, *tmp_m, *w_m2, opt.precond_AAt, opt.cg_maxit,
-                        opt.cg_rel_tol, opt.cg_breakdown_tol);
+      const std::size_t probe_cg_its =
+          cg_normal_eq_prec(A, vf, *tmp_m, *w_m2, opt.precond_AAt,
+                            opt.cg_maxit, opt.cg_rel_tol, opt.cg_breakdown_tol)
+              .first;
+      ++R.cg_solves;
+      if (probe_cg_its >= opt.cg_maxit)
+        ++R.cg_maxit_hits;
       A.multiply_transpose(*w_m2, *tmp_n2);
       vprobe->add_scaled(*tmp_n2, -1.0);
 
@@ -568,9 +580,16 @@ find_nullspace_cyclic_lanczos_ex(const MatrixInterface &A,
       ++restarts_since_accept;
       if (opt.stagnation_restarts > 0 &&
           restarts_since_accept >= opt.stagnation_restarts) {
-        if (opt.verbose)
+        if (opt.verbose) {
           std::cout << "[Cyclic] stopping due to stagnation ("
                     << restarts_since_accept << " restarts without accept)\n";
+          if (R.cg_maxit_hits > 0)
+            std::cout << "[Cyclic] " << R.cg_maxit_hits << " of "
+                      << R.cg_solves << " polishing CG solves stopped at cg_maxit="
+                      << opt.cg_maxit
+                      << "; consider increasing cg_maxit or providing "
+                         "precond_AAt\n";
+        }
         R.right_null = std::move(basis);
         return R;
       }

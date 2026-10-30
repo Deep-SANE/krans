@@ -101,7 +101,11 @@ struct CyclicLanczosOptions {
 
   /** Left preconditioner M^{-1} for (A A^T) in projector polishing. */
   AAtPreconditioner precond_AAt = nullptr;
-  /** Maximum CG iterations for solving (A A^T) w = r in polishing. */
+  /** Maximum CG iterations for solving (A A^T) w = r in polishing. The
+   * polishing step only works if this CG converges; for ill-conditioned A A^T
+   * (e.g. discretized differential operators) it may need O(rows) iterations
+   * or a preconditioner (precond_AAt). See CyclicLanczosResult::cg_maxit_hits.
+   */
   std::size_t cg_maxit = 80;
   /** Relative CG tolerance for polishing solves. */
   double cg_rel_tol = 1e-10;
@@ -140,6 +144,11 @@ struct CyclicLanczosResult {
   double frob_norm_est = 0.0;
   /** True if the target count was reached (k or nullity_known). */
   bool converged_to_target = false;
+  /** Number of polishing CG solves on (A A^T) w = r. */
+  std::size_t cg_solves = 0;
+  /** How many of them stopped at cg_maxit before reaching cg_rel_tol; a large
+   * share suggests increasing cg_maxit or providing precond_AAt. */
+  std::size_t cg_maxit_hits = 0;
 };
 
 /** Compute right-nullspace via cyclic Lanczos on H(A); optional left space. */

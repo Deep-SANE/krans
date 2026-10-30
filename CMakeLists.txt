@@ -261,6 +261,9 @@ target_link_libraries(test_subspace_compare PRIVATE krans_eigen)
 add_executable(test_all_solvers tests/test_all_solvers.cpp)
 target_link_libraries(test_all_solvers PRIVATE krans_eigen)
 
+add_executable(test_difference_operator tests/test_difference_operator.cpp)
+target_link_libraries(test_difference_operator PRIVATE krans_eigen)
+
 # Convenience target to run the essential adapter/factory tests
 add_custom_target(run_core_adapter_tests
   COMMAND test_vector_adapter

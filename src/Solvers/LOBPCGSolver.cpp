@@ -475,9 +475,14 @@ LOBPCGResult find_nullspace_lobpcg_ex(const MatrixInterface &A,
     }
   }
 
-  std::size_t bs = std::max<std::size_t>(1, opt.block_size);
-  if (k_target > 0)
-    bs = std::min<std::size_t>(bs, std::max<std::size_t>(1, k_target));
+  // block size: explicit value is honored (extra vectors act as guards);
+  // 0 = auto
+  std::size_t bs =
+      opt.block_size > 0
+          ? opt.block_size
+          : std::min<std::size_t>(16, std::max<std::size_t>(1, k_target));
+  bs = std::min<std::size_t>(bs, n);
+  R.block_size = bs;
 
   const std::size_t guards =
       (bs == 1) ? 0
@@ -489,6 +494,7 @@ LOBPCGResult find_nullspace_lobpcg_ex(const MatrixInterface &A,
       estimate_fro_norm(A, vf, /*samples*/ std::max(1, opt.frob_samples));
   const double accept_thr =
       std::max(opt.tol_abs, opt.tol_rel * std::max(1.0, R.frob_norm_est));
+  R.accept_threshold = accept_thr;
 
   // locked set
   std::vector<VUPtr> Y_locked;
@@ -535,6 +541,7 @@ LOBPCGResult find_nullspace_lobpcg_ex(const MatrixInterface &A,
 
     // residuals + acceptance
     std::size_t nconv = 0;
+    double best_unaccepted = std::numeric_limits<double>::infinity();
     for (std::size_t j = 0; j < bs; ++j) {
       Rb[j]->copy_from(*AX[j]);
       Rb[j]->add_scaled(*X[j], -theta[j]);
@@ -582,19 +589,32 @@ LOBPCGResult find_nullspace_lobpcg_ex(const MatrixInterface &A,
           if (locked_total >= k_target)
             break;
         } else {
+          best_unaccepted = std::min(best_unaccepted, Av_orig);
           if (opt.verbose)
             std::cout << "[LOBPCG] reject candidate after ortho "
                          "(degenerate/duplicate or residual grew)"
                       << "  ||A v||_orig=" << Av_orig
                       << "  ||A v||_post=" << Av_acc << "\n";
         }
-      } else if (opt.soft_locking && j == nconv) {
-        // first unconverged ends the soft-locked prefix
+      } else {
+        best_unaccepted = std::min(best_unaccepted, Av_orig);
+        if (opt.soft_locking && j == nconv) {
+          // first unconverged ends the soft-locked prefix
+        }
       }
     }
 
     R.locked = locked_total;
     R.iters = its;
+    R.best_unaccepted_residual = std::isfinite(best_unaccepted)
+                                     ? best_unaccepted
+                                     : 0.0;
+    if (opt.verbose && opt.progress_every > 0 &&
+        (its == 1 || its % opt.progress_every == 0))
+      std::cout << "[LOBPCG] it=" << its << "  locked=" << locked_total << "/"
+                << k_target << "  min ||A x|| (unaccepted)="
+                << R.best_unaccepted_residual << "  accept_thr=" << accept_thr
+                << "\n";
     if (locked_total >= k_target)
       break;
 
@@ -768,6 +788,20 @@ LOBPCGResult find_nullspace_lobpcg_ex(const MatrixInterface &A,
   }
 
   R.converged_to_target = (R.locked >= k_target);
+  if (opt.verbose) {
+    if (R.converged_to_target)
+      std::cout << "[LOBPCG] converged: " << R.locked << "/" << k_target
+                << " vectors in " << R.iters << " iterations (block_size=" << bs
+                << ")\n";
+    else
+      std::cout << "[LOBPCG] NOT converged: " << R.locked << "/" << k_target
+                << " vectors after " << R.iters
+                << " iterations (max_iters=" << opt.max_iters
+                << ", block_size=" << bs
+                << "); min ||A x|| (unaccepted)=" << R.best_unaccepted_residual
+                << " vs accept_thr=" << accept_thr
+                << ". Increase max_iters or block_size, or provide M_inv.\n";
+  }
 
   // Final polish: block polish + 2D RR per vector
   if (!R.right_null.empty()) {

@@ -81,6 +81,8 @@ Notes:
   `void(const std::vector<double>& x, std::vector<double>& y)`; `y` is preallocated to the right size.
 - `StdVectorFactory` creates the work vectors the solver needs (seeded for reproducibility).
 - The result is a vector of `std::unique_ptr<krans::VectorInterface>`; `->data()` gives the raw values.
+- `opt.cg_maxit` is raised from its default of 80 because `D Dᵀ` is ill-conditioned; see
+  [Convergence of the iterative solvers](#convergence-of-the-iterative-solvers).
 
 ## Header-only or compiled?
 
@@ -188,6 +190,40 @@ Or you can run cross-validation of all available solvers (RREF verification)
 ```bash
 ./build/test_all_solvers
 ```
+
+## Convergence of the iterative solvers
+
+The matrix-free solvers converge at a rate governed by the conditioning of the operators they iterate
+with: `AᵀA` for `lobpcg`, and `AAᵀ` for the inner CG that `cyclic` uses to project candidates onto
+`ker(A)`. For ill-conditioned `A` — e.g. discretized differential operators, where the condition number
+grows like `n²` — the default iteration limits can be too small. The solvers then return **fewer vectors
+than requested** instead of failing loudly.
+
+**Detecting it.** Compare the number of returned vectors with the number requested, or use the `_ex`
+variants (`find_nullspace_lobpcg_ex`, `find_nullspace_cyclic_lanczos_ex`) and check
+`converged_to_target`. With `verbose = true`, both solvers print progress and a final diagnosis.
+
+**`lobpcg` options** (`LOBPCGOptions`):
+- `max_iters` (default 1000) — unpreconditioned LOBPCG may need many more. `LOBPCGResult` reports
+  `iters`, `accept_threshold` and `best_unaccepted_residual` (how close a non-converged run got).
+- `block_size` (default 0 = `min(16, nev)`) — values above `nev` are honored; the extra vectors cut the
+  iteration count sharply but make each iteration more expensive.
+- `M_inv` — a preconditioner for `AᵀA`, the standard way to speed up convergence when one is available.
+
+**`cyclic` options** (`CyclicLanczosOptions`):
+- `cg_maxit` (default 80) — the projection step works only if its CG on `AAᵀ` converges.
+  `CyclicLanczosResult::cg_maxit_hits` counts the CG solves that stopped at this limit.
+- `precond_AAt` — a preconditioner for `AAᵀ`.
+
+Measured on the quick-start operator `D` (`n = 1000`, one null vector, three random starts):
+
+| Solver and settings | Iterations | Time | Result |
+|---|---|---|---|
+| `lobpcg`, defaults (`block_size` 1, `max_iters` 1000) | 1 000 | 0.02 s | no vector found |
+| `lobpcg`, `block_size` 1, unlimited iterations | 5 940 – 11 505 | 0.14 – 0.27 s | found |
+| `lobpcg`, `block_size` 16, unlimited iterations | 384 – 439 | 0.9 – 1.0 s | found |
+| `cyclic`, defaults (`cg_maxit` 80) | all 245 CG solves hit `cg_maxit` | 0.17 s | no vector found |
+| `cyclic`, `cg_maxit` 1000 | 1 CG solve | 0.007 s | found |
 
 ## CLI
 

@@ -71,9 +71,14 @@ using NormalPreconditioner =
 struct LOBPCGOptions {
   /** Number of right-null vectors requested (used if nullity_known < 0). */
   std::size_t nev = 1;
-  /** Block size (number of simultaneous vectors in the iterate X). */
-  std::size_t block_size = 16;
-  /** Maximum outer iterations. */
+  /** Block size (number of simultaneous vectors in the iterate X).
+   * 0 = auto: min(16, number of requested vectors). Larger values are honored
+   * (capped at cols(A)); the extra vectors act as guards and typically cut the
+   * iteration count sharply on ill-conditioned A, at a higher cost per
+   * iteration. */
+  std::size_t block_size = 0;
+  /** Maximum outer iterations. Unpreconditioned LOBPCG on A^T A may need far
+   * more than the default for ill-conditioned A; check converged_to_target. */
   std::size_t max_iters = 1000;
   /** Absolute tolerance on ||A v||_2. */
   double tol_abs = 1e-12;
@@ -88,7 +93,8 @@ struct LOBPCGOptions {
   double gs_tol = 1e-14;
   /** Whether to use double reorthogonalization. */
   bool gs_reorth = true;
-  /** Preconditioner M^{-1} acting in n-space (for N = A^T A). */
+  /** Preconditioner M^{-1} acting in n-space (for N = A^T A), y <- M^{-1} r.
+   * The standard way to speed up convergence on ill-conditioned A. */
   NormalPreconditioner M_inv = nullptr;
   /** Optional initial block seeds. */
   std::vector<std::unique_ptr<VectorInterface>> initial_block;
@@ -100,8 +106,12 @@ struct LOBPCGOptions {
   int nullity_known = -1;
   /** Known rank to early exit when n <= rank_known (-1 if unknown). */
   int rank_known = -1;
-  /** Print trace information. */
+  /** Print trace information (accept/reject events, periodic progress, and a
+   * final summary that flags a non-converged run). */
   bool verbose = false;
+  /** With verbose, print a progress line every this many iterations
+   * (0 = no periodic progress). */
+  std::size_t progress_every = 100;
 };
 
 struct LOBPCGResult {
@@ -117,6 +127,13 @@ struct LOBPCGResult {
   std::size_t locked = 0;
   /** Estimated Frobenius norm of A used for thresholds. */
   double frob_norm_est = 0.0;
+  /** Acceptance threshold on ||A v||_2 that was applied. */
+  double accept_threshold = 0.0;
+  /** Smallest ||A x||_2 among not-yet-accepted iterates in the last iteration
+   * (shows how close a non-converged run got; 0 if nothing was left). */
+  double best_unaccepted_residual = 0.0;
+  /** Block size actually used. */
+  std::size_t block_size = 0;
   /** True if the requested target (or known nullity) was reached. */
   bool converged_to_target = false;
 };
