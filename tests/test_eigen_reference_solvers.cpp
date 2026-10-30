@@ -6,17 +6,28 @@
 #include "krans/adapters/eigen/EigenDenseMatrixAdapter.hpp"
 #include "krans/adapters/eigen/EigenSparseMatrixAdapter.hpp"
 #include "krans/adapters/eigen/EigenVectorAdapter.hpp"
+#include "krans/adapters/eigen/EigenVectorFactory.hpp"
 
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
-#include <cassert>
 #include <cmath>
+#include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <vector>
 
 using namespace krans;
+
+// CHECK() is compiled out (-DNDEBUG), so failures are checked explicitly.
+#define CHECK(cond)                                                            \
+  do {                                                                         \
+    if (!(cond)) {                                                             \
+      std::cerr << "CHECK failed: " #cond " (" << __FILE__ << ":" << __LINE__ \
+                << ")\n";                                                     \
+      std::exit(1);                                                            \
+    }                                                                          \
+  } while (0)
 
 static const Eigen::VectorXd &view(const VectorInterface &v) {
   return dynamic_cast<const EigenVectorAdapter &>(v).view();
@@ -38,23 +49,6 @@ struct SolverEntry {
                                                       double /*tol_rel*/);
 };
 
-struct DummyFactory : VectorFactory {
-  std::unique_ptr<VectorInterface> create_zero() const override {
-    throw std::logic_error("unused");
-  }
-  std::unique_ptr<VectorInterface> create_random() const override {
-    throw std::logic_error("unused");
-  }
-  std::unique_ptr<VectorInterface>
-  create_zero_of_size(std::size_t) const override {
-    throw std::logic_error("unused");
-  }
-  std::unique_ptr<VectorInterface>
-  create_random_of_size(std::size_t) const override {
-    throw std::logic_error("unused");
-  }
-};
-
 // same scale we use in solvers: cheap and consistent
 static double matrix_rank_scale(const Eigen::MatrixXd &M) {
   const double s = M.cwiseAbs().maxCoeff();
@@ -67,7 +61,8 @@ static void run_and_check(const std::string &label, const MatrixInterface &A,
                           double tol_rel, double res_tol = 1e-10,
                           double ortho_tol = 1e-10) {
   std::cout << "---- " << label << " ----\n";
-  DummyFactory dummy;
+  // The solvers allocate their work and output vectors through the factory.
+  EigenVectorFactory vf(A.cols());
 
   // Build a *dense* copy to compute the same scale as the solvers
   Eigen::MatrixXd M;
@@ -88,29 +83,29 @@ static void run_and_check(const std::string &label, const MatrixInterface &A,
   const double scale = matrix_rank_scale(M);
 
   for (const auto &s : solvers) {
-    auto basis = s.fn(A, dummy, tol_rel);
+    auto basis = s.fn(A, vf, tol_rel);
 
     std::cout << "  [" << s.name << "] nullity=" << basis.size() << "\n";
-    assert(static_cast<int>(basis.size()) == expected_nullity);
+    CHECK(static_cast<int>(basis.size()) == expected_nullity);
 
     // Residuals and unit norms
     EigenVectorAdapter y(A.rows());
     for (auto &v : basis) {
       const double nv = v->norm();
-      assert(std::fabs(nv - 1.0) <= 1e-12);
+      CHECK(std::fabs(nv - 1.0) <= 1e-12);
       A.multiply(*v, y);
       const double r = y.norm();
 
       // Allowance proportional to both an absolute floor (res_tol*scale)
       // and a looser cushion driven by tol_rel*scale
       const double allowed = std::max(res_tol * scale, 10.0 * tol_rel * scale);
-      assert(r <= allowed);
+      CHECK(r <= allowed);
     }
 
     // Orthonormality among returned basis vectors (if >1)
     if (basis.size() > 1) {
       const double mmax = max_offdiag_dot(basis);
-      assert(mmax <= ortho_tol);
+      CHECK(mmax <= ortho_tol);
     }
   }
 }
