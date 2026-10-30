@@ -25,9 +25,11 @@
   1) Lanczos on H(A) (implicit multiply via A and A^T), with optional double
      reorthogonalization and **hard locking** of accepted vectors [0; v].
      Start vectors are [0; y], so the Lanczos vectors alternate between
-     [x; 0] and [0; y] (Golub–Kahan structure) and the Krylov space contains
-     no components of ker(A^T), which would otherwise crowd the eigenvalue 0
-     of H(A) when A has many more rows than rank.
+     [x; 0] and [0; y] and the Krylov space contains no components of
+     ker(A^T), which would otherwise crowd the eigenvalue 0 of H(A) when A
+     has many more rows than rank. This is Golub–Kahan bidiagonalization and
+     is implemented as such: one product with A or A^T per Lanczos step, and
+     the x- and y-vectors are stored and reorthogonalized separately.
   2) Solve the tiny projected problem and use **refined interior selection**
      (tau=0 by default): candidates minimize ||(H - tau I) z|| over the
      Krylov space (smallest singular vectors of the (l+1) x l Lanczos matrix).

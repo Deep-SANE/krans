@@ -14,56 +14,21 @@
 
 namespace krans::solvers {
 
-// ---------------- Block helpers: z = [x; y] ----------------------------------
-struct BlockVec {
-  std::unique_ptr<VectorInterface> top;    // x (size m)
-  std::unique_ptr<VectorInterface> bottom; // y (size n)
-};
-static inline double block_dot(const BlockVec &a, const BlockVec &b) {
-  return a.top->dot(*b.top) + a.bottom->dot(*b.bottom);
-}
-static inline double block_norm(const BlockVec &v) {
-  return std::sqrt(block_dot(v, v));
-}
-static inline void block_axpy(BlockVec &y, const BlockVec &x, double a) {
-  y.top->add_scaled(*x.top, a);
-  y.bottom->add_scaled(*x.bottom, a);
-}
-static inline void block_scale(BlockVec &v, double s) {
-  v.top->scale(s);
-  v.bottom->scale(s);
-}
-static inline void block_normalize(BlockVec &v, double eps = 1e-16) {
-  const double n = std::max(eps, block_norm(v));
-  block_scale(v, 1.0 / n);
-}
+// ---------------- Golub–Kahan helpers ---------------------------------------
+// Lanczos on H(A) = [0 A; A^T 0] started from [0; y_0] is Golub–Kahan
+// bidiagonalization: the Lanczos vectors alternate [0; y_0], [x_1; 0],
+// [0; y_1], ..., every diagonal entry of T is 0, and each step needs a single
+// product with A or A^T. Only the nonzero halves are stored (Y of size n,
+// X of size m), so reorthogonalization runs on half-length vectors and only
+// against vectors of the same kind.
 
-static inline void H_apply(const MatrixInterface &A, const BlockVec &z,
-                           BlockVec &Hz) {
-  A.multiply(*z.bottom, *Hz.top);           // x' = A y
-  A.multiply_transpose(*z.top, *Hz.bottom); // y' = A^T x
-}
-
-// ---------------- Utilities -------------------------------------------------
-static inline void reorth_block(BlockVec &w, const std::vector<BlockVec> &V,
-                                const std::vector<BlockVec> &Locked,
-                                ReorthMode mode) {
-  if (mode == ReorthMode::None)
-    return;
-
-  auto pass = [&](const std::vector<BlockVec> &S) {
-    for (const auto &s : S) {
-      const double c = block_dot(s, w);
-      block_axpy(w, s, -c);
-    }
-  };
-  // First pass
-  pass(Locked);
-  pass(V);
-  if (mode == ReorthMode::Double) {
-    // Second pass
-    pass(Locked);
-    pass(V);
+// w <- w - (s . w) s for each s in S, in order (one Gram–Schmidt pass).
+static inline void
+orth_pass(VectorInterface &w,
+          const std::vector<std::unique_ptr<VectorInterface>> &S) {
+  for (const auto &s : S) {
+    const double c = s->dot(w);
+    w.add_scaled(*s, -c);
   }
 }
 
@@ -317,12 +282,12 @@ private:
 } // namespace
 
 // ----------------------------- Main solver -----------------------------------
-// Right null space only. The Krylov space is started from z0 = [0; y], so the
-// Lanczos vectors alternate between [x; 0] and [0; y] (Golub-Kahan structure)
-// and never pick up components of ker(A^T): for tall A (m > n) that space is
-// large and otherwise floods the cluster of H(A) at 0, so that most interior
-// candidates have a (numerically) zero bottom block. Accepted vectors are
-// locked as [0; v], which preserves that structure.
+// Right null space only. The Krylov space is started from z0 = [0; y], i.e.
+// Lanczos on H(A) runs as Golub–Kahan bidiagonalization (see above) and never
+// picks up components of ker(A^T): for tall A (m > n) that space is large and
+// would otherwise flood the cluster of H(A) at 0, so that most interior
+// candidates have a (numerically) zero right block. Accepted vectors v are
+// locked as [0; v], so only the y-vectors are orthogonalized against them.
 static CyclicLanczosResult
 find_right_nullspace(const MatrixInterface &A, const VectorFactory &vf,
                      const CyclicLanczosOptions &opt) {
@@ -344,10 +309,6 @@ find_right_nullspace(const MatrixInterface &A, const VectorFactory &vf,
   }
   const std::size_t ncv =
       std::max<std::size_t>(std::max<std::size_t>(2, opt.ncv), k_target + 2);
-
-  auto make_block = [&](std::size_t mt, std::size_t nb) {
-    return BlockVec{vf.create_zero_of_size(mt), vf.create_zero_of_size(nb)};
-  };
 
   // Pre-compute ||A||_F estimate for scale-invariant thresholds
   R.frob_norm_est = estimate_fro_norm(A, vf, std::max(1, opt.frob_samples));
@@ -380,16 +341,17 @@ find_right_nullspace(const MatrixInterface &A, const VectorFactory &vf,
   else
     y0 = vf.create_random_of_size(n);
 
-  std::vector<BlockVec> V;
-  V.reserve(ncv + 1);
+  // Golub–Kahan vectors of the current cycle. Lanczos vector i of H(A) is
+  // [0; Y[i/2]] for even i and [X[(i-1)/2]; 0] for odd i.
+  std::vector<std::unique_ptr<VectorInterface>> Y, X;
+  Y.reserve(ncv / 2 + 1);
+  X.reserve(ncv / 2 + 1);
 
+  // Tridiagonal T of H(A) in that basis: alpha (all 0) and beta
   std::vector<double> alpha;
   alpha.reserve(ncv);
   std::vector<double> beta;
   beta.reserve(ncv);
-
-  // Hard-locked accepted vectors [0; v]
-  std::vector<BlockVec> Locked;
 
   auto tmp_m = vf.create_zero_of_size(m); // reused for ||A v||
   auto w_m = vf.create_zero_of_size(m);
@@ -411,35 +373,50 @@ find_right_nullspace(const MatrixInterface &A, const VectorFactory &vf,
         break; // basis already spans R^n
     }
     y0->scale(1.0 / ny);
-    V.clear();
-    V.push_back(BlockVec{vf.create_zero_of_size(m), std::move(y0)});
+    Y.clear();
+    X.clear();
+    Y.push_back(std::move(y0));
 
-    // ---- Krylov build up to l ≤ ncv
-    BlockVec w = make_block(m, n);
+    // ---- Golub–Kahan build up to l <= ncv Lanczos vectors of H(A):
+    //   from y_j:  w = A y_j   - beta x_j,   reorth vs X,         -> x_{j+1}
+    //   from x_j:  w = A^T x_j - beta y_{j-1}, reorth vs basis, Y -> y_j
+    auto w_x = vf.create_zero_of_size(m);
+    auto w_y = vf.create_zero_of_size(n);
     std::size_t local_steps = 0;
     double beta_last = 0.0;
     for (std::size_t j = 0; j < ncv; ++j) {
-      H_apply(A, V.back(), w);
+      const bool from_y = (Y.size() > X.size()); // last vector is [0; y]
+      VectorInterface &w = from_y ? *w_x : *w_y;
+      if (from_y) {
+        A.multiply(*Y.back(), w);
+        if (!beta.empty())
+          w.add_scaled(*X.back(), -beta.back());
+      } else {
+        A.multiply_transpose(*X.back(), w);
+        w.add_scaled(*Y.back(), -beta.back());
+      }
 
-      const double aj = block_dot(V.back(), w);
-      block_axpy(w, V.back(), -aj);
-      if (!beta.empty())
-        block_axpy(w, V[V.size() - 2], -beta.back());
+      const int reorth_passes = static_cast<int>(opt.reorth);
+      for (int pass = 0; pass < reorth_passes; ++pass) {
+        if (from_y) {
+          orth_pass(w, X);
+        } else {
+          orth_pass(w, basis); // locked [0; v]
+          orth_pass(w, Y);
+        }
+      }
 
-      reorth_block(w, V, Locked, opt.reorth);
-
-      const double bj = block_norm(w);
-      alpha.push_back(aj);
+      const double bj = std::sqrt(w.dot(w));
+      alpha.push_back(0.0);
       beta_last = bj;
 
-      if (!std::isfinite(bj) || bj < 1e-14 || V.size() >= ncv)
+      if (!std::isfinite(bj) || bj < 1e-14 || Y.size() + X.size() >= ncv)
         break;
 
       beta.push_back(bj);
-      BlockVec vnew{w.top->clone(), w.bottom->clone()};
-      vnew.top->scale(1.0 / bj);
-      vnew.bottom->scale(1.0 / bj);
-      V.push_back(std::move(vnew));
+      auto vnew = w.clone();
+      vnew->scale(1.0 / bj);
+      (from_y ? X : Y).push_back(std::move(vnew));
       ++local_steps;
     }
     R.krylov_steps_total += local_steps;
@@ -492,10 +469,18 @@ find_right_nullspace(const MatrixInterface &A, const VectorFactory &vf,
     for (std::size_t t = 0; t < ord.size() && tested < test_cap; ++t) {
       const int jbest = ord[t];
 
-      // candidate right vector v := bottom(V * c_j)
+      // candidate right vector v := right block of the Lanczos combination,
+      // i.e. sum over even i of c_i y_{i/2}. Pure [x; 0] combinations
+      // (the odd-only singular vectors of Tbar) are skipped before forming v.
+      double c_even2 = 0.0;
+      for (std::size_t i = 0; i < l; i += 2)
+        c_even2 += tev.evecs(static_cast<int>(i), jbest) *
+                   tev.evecs(static_cast<int>(i), jbest);
+      if (!(c_even2 >= 1e-20))
+        continue;
       auto v = vf.create_zero_of_size(n);
-      for (std::size_t i = 0; i < l; ++i)
-        v->add_scaled(*V[i].bottom, tev.evecs(static_cast<int>(i), jbest));
+      for (std::size_t i = 0; i < l; i += 2)
+        v->add_scaled(*Y[i / 2], tev.evecs(static_cast<int>(i), jbest));
 
       // GS vs accepted right-nullspace, normalize
       gs_against_basis(*v);
@@ -563,7 +548,6 @@ find_right_nullspace(const MatrixInterface &A, const VectorFactory &vf,
       }
 
       if (res <= accept_thresh) {
-        Locked.push_back(BlockVec{vf.create_zero_of_size(m), v->clone()});
         basis.push_back(std::move(v));
         accepted_this_cycle = true;
         if (basis.size() >= k_target) {

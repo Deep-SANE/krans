@@ -179,7 +179,7 @@ CMake package support (`find_package(KraNS)` / `add_subdirectory`) is planned bu
     - `fullpivlu` — Full-pivot LU; rank via lu.rank(); kernel from lu.kernel()
     - `suitesparse` *(Optional: USED FOR BENCHMARKING)* — Direct multifrontal sparse QR factorization (SPQR) defining the "Memory Wall"
   - **Iterative (matrix-free)**:
-    - `cyclic` (Golub–Kahan-structured Lanczos on H(A), refined interior extraction, projector polishing, optional left nullspace)
+    - `cyclic` (Lanczos on H(A) run as Golub–Kahan bidiagonalization, refined interior extraction, projector polishing, optional left nullspace)
     - `lobpcg` (Locally Optimal Block Preconditioned Conjugate Gradient method for finding the right nullspace)
     - `spectra` *(Optional: USED FOR BENCHMARKING)* — Implicitly Restarted Lanczos Method operating on normal equations (A^T A)
     - `primme` *(Optional: USED FOR BENCHMARKING)* — High-performance hybrid solver
