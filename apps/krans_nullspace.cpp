@@ -58,6 +58,8 @@ void usage(const char *argv0) {
       << "           [--out N.csv] [--report report.json]\n"
       << "           [--tol <rel_tol>]           # for direct solvers (default "
          "1e-12)\n"
+      << "           [--seed <int>]              # RNG seed for iterative "
+         "solvers (default 1; 0 = random)\n"
       << "\n"
       << "Cyclic solver options (optional):\n"
       << "  --k <int>              # number of right null vectors (default 1)\n"
@@ -71,6 +73,10 @@ void usage(const char *argv0) {
          "1\n"
       << "  --cg-maxit <int>       # CG iters for normal eqs, default 80\n"
       << "  --cg-rel <float>       # CG relative tol, default 1e-10\n"
+      << "  --prescreen <float>    # skip polishing if ||A v|| > f*||A||_F, "
+         "default 0.8\n"
+      << "  --stagnation <int>     # stop after this many restarts without "
+         "progress (0 = off), default 30\n"
       << "  --verbose              # print progress\n"
       << "  --left                 # also export left nullspace to N_left.csv\n"
       << "\n"
@@ -126,8 +132,13 @@ int main(int argc, char **argv) {
   int cyc_proj_passes = 1;
   int cyc_cg_maxit = 80;
   double cyc_cg_rel = 1e-10;
+  double cyc_prescreen = 0.8;
+  int cyc_stagnation = 30;
   bool cyc_verbose = false;
   bool cyc_left = false;
+
+  // Fixed default seed so runs are reproducible
+  unsigned seed = 1;
 
   // LOBPCG options
   int lob_k = 1;
@@ -228,6 +239,24 @@ int main(int argc, char **argv) {
         return 2;
       }
       cyc_cg_rel = std::stod(argv[++i]);
+    } else if (a == "--prescreen") {
+      if (need(i, 1)) {
+        usage(argv[0]);
+        return 2;
+      }
+      cyc_prescreen = std::stod(argv[++i]);
+    } else if (a == "--stagnation") {
+      if (need(i, 1)) {
+        usage(argv[0]);
+        return 2;
+      }
+      cyc_stagnation = std::stoi(argv[++i]);
+    } else if (a == "--seed") {
+      if (need(i, 1)) {
+        usage(argv[0]);
+        return 2;
+      }
+      seed = static_cast<unsigned>(std::stoul(argv[++i]));
     } else if (a == "--left") {
       cyc_left = true;
     }
@@ -312,7 +341,7 @@ int main(int argc, char **argv) {
   const std::size_t n = A.cols();
 
   // Real vector factory (default size = n)
-  krans::EigenVectorFactory vf(n);
+  krans::EigenVectorFactory vf(n, seed);
 
   // ---- Solve ----------------------------------------------------------------
   timer.reset();
@@ -336,6 +365,9 @@ int main(int argc, char **argv) {
     opt.cg_maxit =
         (cyc_cg_maxit >= 0 ? static_cast<std::size_t>(cyc_cg_maxit) : 80);
     opt.cg_rel_tol = cyc_cg_rel;
+    opt.prescreen_factor = cyc_prescreen;
+    opt.stagnation_restarts =
+        static_cast<std::size_t>(std::max(0, cyc_stagnation));
     opt.reorth = krans::solvers::ReorthMode::Double;
     opt.use_harmonic = true;
     opt.target_tau = 0.0;

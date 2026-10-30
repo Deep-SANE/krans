@@ -23,14 +23,21 @@
   METHOD
   ----------------------------
   1) Lanczos on H(A) (implicit multiply via A and A^T), with optional double
-     reorthogonalization and **hard locking** of accepted vectors.
-  2) Solve the tiny projected problem and use **harmonic interior selection**
-     (tau=0 by default) to extract candidates z = [x; y].
+     reorthogonalization and **hard locking** of accepted vectors [0; v].
+     Start vectors are [0; y], so the Lanczos vectors alternate between
+     [x; 0] and [0; y] (Golub–Kahan structure) and the Krylov space contains
+     no components of ker(A^T), which would otherwise crowd the eigenvalue 0
+     of H(A) when A has many more rows than rank.
+  2) Solve the tiny projected problem and use **refined interior selection**
+     (tau=0 by default): candidates minimize ||(H - tau I) z|| over the
+     Krylov space (smallest singular vectors of the (l+1) x l Lanczos matrix).
   3) Candidate right vector v := y.  Gram–Schmidt vs. accepted basis.
   4) **Polish** by one or two passes of the **orthogonal projector** onto
   ker(A): v <- v − A^T (A A^T)^{-1} (A v), solved by short (preconditioned) CG
   on normal equations. 5) Accept if ||A v|| <= max(tol_abs, tol_rel*||A||_F).
-  Restart with the best candidate if more vectors are needed. Fallback:
+  Restart with the best candidate if more vectors are needed. A single-vector
+  Krylov space holds one direction of ker(A) (the projection of its start
+  vector), so expect roughly one acceptance per restart. Fallback:
   randomized projector + gradient descent on f(v)=1/2||A v||^2 with safe steps
   via
   ||A||_F.
@@ -49,7 +56,8 @@
 
   NOTE
   ----
-  - Left-nullspace (ker(A^T)) vectors are available from the top block.
+  - Left-nullspace (ker(A^T)) vectors are computed, on request, by a second
+    run on A^T.
 */
 
 #include <cstddef>
@@ -86,7 +94,8 @@ struct CyclicLanczosOptions {
 
   /** Reorthogonalization mode for Krylov vectors. */
   ReorthMode reorth = ReorthMode::Double;
-  /** Use harmonic interior extraction when true, else plain Ritz. */
+  /** Use refined interior extraction (minimal ||(H - tau I) z||) when true,
+   * else plain Ritz values closest to tau. (Name kept for compatibility.) */
   bool use_harmonic = true;
   /** Interior target shift tau for harmonic selection (default 0). */
   double target_tau = 0.0;
@@ -96,7 +105,8 @@ struct CyclicLanczosOptions {
   /** Known rank to short-circuit when n <= rank_known (-1 if unknown). */
   int rank_known = -1;
 
-  /** Optional initial right-space seeds y_j (ownership consumed). */
+  /** Optional initial right-space seeds y_j; only the first is used, as the
+   * initial start vector [0; y_0]. */
   std::vector<std::unique_ptr<VectorInterface>> initial_right_space;
 
   /** Left preconditioner M^{-1} for (A A^T) in projector polishing. */
@@ -119,12 +129,15 @@ struct CyclicLanczosOptions {
   /** Hutchinson probe count to estimate ||A||_F. */
   int frob_samples = 4;
 
-  /** Prescreen factor: skip polishing if ||A v||_2 > factor * ||A||_F. */
+  /** Prescreen factor: skip polishing if ||A v||_2 > factor * ||A||_F. Since
+   * ||A v|| <= ||A||_2 <= ||A||_F for unit v, factors >= 1 disable it.
+   * Independently, once a polish of a candidate stops at cg_maxit without
+   * acceptance, the remaining candidates of that restart are not polished. */
   double prescreen_factor = 0.8;
   /** Stop after this many restarts without an acceptance (> 0 to enable). */
   std::size_t stagnation_restarts = 30;
 
-  /** Also return left-null vectors from the top block when true. */
+  /** Also compute up to k left-null vectors (ker(A^T)) when true. */
   bool return_left_space = false;
   /** Print verbose progress information when true. */
   bool verbose = false;

@@ -96,8 +96,8 @@ cg_normal_eq_prec(const MatrixInterface &A, const VectorFactory &vf,
   r->copy_from(rhs_m);
 
   const double rhsn = std::sqrt(std::max(0.0, r->dot(*r)));
-  if (rhsn == 0.0)
-    return {0, 0.0};
+  if (!(rhsn > 0.0) || !std::isfinite(rhsn))
+    return {0, rhsn}; // zero (or non-finite) rhs: w = 0
 
   if (M_inv)
     M_inv(*r, *z);
@@ -106,7 +106,9 @@ cg_normal_eq_prec(const MatrixInterface &A, const VectorFactory &vf,
   p->copy_from(*z);
 
   double rz = r->dot(*z);
-  double rnorm = std::sqrt(std::max(0.0, rz));
+  if (!(rz > 0.0) || !std::isfinite(rz))
+    return {0, rhsn}; // preconditioner not SPD on r
+  double rnorm = std::sqrt(rz);
   const double tol = std::max(rel_tol * rnorm, 1e-30);
   if (rnorm <= tol)
     return {0, rnorm};
@@ -128,6 +130,8 @@ cg_normal_eq_prec(const MatrixInterface &A, const VectorFactory &vf,
       z->copy_from(*r);
 
     const double rz_new = r->dot(*z);
+    if (!std::isfinite(rz_new))
+      break;
     rnorm = std::sqrt(std::max(0.0, rz_new));
     if (rnorm <= tol) {
       ++k;
@@ -244,7 +248,7 @@ static bool try_project_random_to_nullspace(
   return false;
 }
 
-// ---------------- Tiny problems (plain & harmonic) ---------------------------
+// ---------------- Tiny problems (plain & refined) ----------------------------
 struct TinyEV {
   Eigen::VectorXd evals;
   Eigen::MatrixXd evecs;
@@ -267,33 +271,61 @@ static TinyEV solve_tiny_tridiag(const std::vector<double> &alpha,
   return {es.eigenvalues(), es.eigenvectors()};
 }
 
-// harmonic interior (tau): K = (T - tau I); compute InvK ≈ K^{-1} by dense
-// solve, eigendecompose sym(InvK). Harmonic Ritz θ ≈ tau + 1/mi; order by |mi|
-// desc.
-static TinyEV solve_tiny_harmonic(const std::vector<double> &alpha,
-                                  const std::vector<double> &beta, double tau) {
+// Refined interior extraction at tau: with H V = V T + beta_last v_{l+1}
+// e_l^T, ||(H - tau I) V c|| = ||Tbar c|| where Tbar = [T - tau I;
+// beta_last e_l^T] is (l+1) x l. Its right singular vectors minimize the
+// residual over the Krylov space; evals holds the singular values (the
+// residual norms). Unlike inverting T - tau I, this stays well
+// defined when tau is an exact Ritz value (e.g. an exactly captured null
+// vector), which made the old LU-based harmonic solve return NaN.
+static TinyEV solve_tiny_refined(const std::vector<double> &alpha,
+                                 const std::vector<double> &beta,
+                                 double beta_last, double tau) {
   const int l = static_cast<int>(alpha.size());
-  Eigen::MatrixXd K = Eigen::MatrixXd::Zero(l, l);
+  Eigen::MatrixXd Tbar = Eigen::MatrixXd::Zero(l + 1, l);
   for (int i = 0; i < l; ++i) {
-    K(i, i) = alpha[(std::size_t)i] - tau;
+    Tbar(i, i) = alpha[(std::size_t)i] - tau;
     if (i + 1 < l) {
       const double b = beta[(std::size_t)i];
-      K(i, i + 1) = b;
-      K(i + 1, i) = b;
+      Tbar(i, i + 1) = b;
+      Tbar(i + 1, i) = b;
     }
   }
-  Eigen::PartialPivLU<Eigen::MatrixXd> lu(K);
-  Eigen::MatrixXd InvK = lu.solve(Eigen::MatrixXd::Identity(l, l));
-  Eigen::MatrixXd InvKsym = 0.5 * (InvK + InvK.transpose());
-  Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(InvKsym);
-  return {es.eigenvalues(), es.eigenvectors()};
+  Tbar(l, l - 1) = beta_last;
+  Eigen::JacobiSVD<Eigen::MatrixXd> svd(Tbar, Eigen::ComputeFullV);
+  return {svd.singularValues(), svd.matrixV()};
 }
 
+// Left null vectors of A are right null vectors of A^T.
+namespace {
+class TransposedMatrix final : public MatrixInterface {
+public:
+  explicit TransposedMatrix(const MatrixInterface &A) : A_(A) {}
+  void multiply(const VectorInterface &x, VectorInterface &y) const override {
+    A_.multiply_transpose(x, y);
+  }
+  void multiply_transpose(const VectorInterface &x,
+                          VectorInterface &y) const override {
+    A_.multiply(x, y);
+  }
+  std::size_t rows() const override { return A_.cols(); }
+  std::size_t cols() const override { return A_.rows(); }
+
+private:
+  const MatrixInterface &A_;
+};
+} // namespace
+
 // ----------------------------- Main solver -----------------------------------
-CyclicLanczosResult
-find_nullspace_cyclic_lanczos_ex(const MatrixInterface &A,
-                                 const VectorFactory &vf,
-                                 const CyclicLanczosOptions &opt) {
+// Right null space only. The Krylov space is started from z0 = [0; y], so the
+// Lanczos vectors alternate between [x; 0] and [0; y] (Golub-Kahan structure)
+// and never pick up components of ker(A^T): for tall A (m > n) that space is
+// large and otherwise floods the cluster of H(A) at 0, so that most interior
+// candidates have a (numerically) zero bottom block. Accepted vectors are
+// locked as [0; v], which preserves that structure.
+static CyclicLanczosResult
+find_right_nullspace(const MatrixInterface &A, const VectorFactory &vf,
+                     const CyclicLanczosOptions &opt) {
   const std::size_t m = A.rows(), n = A.cols();
   CyclicLanczosResult R;
 
@@ -302,6 +334,14 @@ find_nullspace_cyclic_lanczos_ex(const MatrixInterface &A,
 
   const std::size_t k_target = static_cast<std::size_t>(
       (opt.nullity_known >= 0) ? opt.nullity_known : static_cast<int>(opt.k));
+  if (k_target == 0) {
+    R.converged_to_target = true;
+    return R;
+  }
+  if (opt.rank_known >= 0 && static_cast<int>(n) <= opt.rank_known) {
+    // full column rank => no right nulls
+    return R;
+  }
   const std::size_t ncv =
       std::max<std::size_t>(std::max<std::size_t>(2, opt.ncv), k_target + 2);
 
@@ -316,37 +356,44 @@ find_nullspace_cyclic_lanczos_ex(const MatrixInterface &A,
   const double prescreen_thresh =
       std::max(0.0, opt.prescreen_factor) * std::max(1.0, R.frob_norm_est);
 
-  // Seed z0
-  BlockVec z0 = make_block(m, n);
-  if (!opt.initial_right_space.empty() && opt.initial_right_space.front()) {
-    z0.bottom = opt.initial_right_space.front()->clone();
-    z0.top->set_zero();
-  } else {
-    z0.bottom = vf.create_random_of_size(n);
-    z0.top = vf.create_random_of_size(m);
-  }
-  block_normalize(z0);
+  // Accepted right-nullspace basis
+  std::vector<std::unique_ptr<VectorInterface>> basis;
+  basis.reserve(k_target);
+
+  auto gs_against_basis = [&](VectorInterface &v) {
+    for (int pass = 0; pass < 2; ++pass)
+      for (auto &q : basis) {
+        const double c = v.dot(*q);
+        v.add_scaled(*q, -c);
+      }
+  };
+
+  // Restart vector: right block only (top block stays zero).
+  auto random_right = [&]() {
+    auto y = vf.create_random_of_size(n);
+    gs_against_basis(*y);
+    return y;
+  };
+  std::unique_ptr<VectorInterface> y0;
+  if (!opt.initial_right_space.empty() && opt.initial_right_space.front())
+    y0 = opt.initial_right_space.front()->clone();
+  else
+    y0 = vf.create_random_of_size(n);
 
   std::vector<BlockVec> V;
   V.reserve(ncv + 1);
-  V.push_back(BlockVec{z0.top->clone(), z0.bottom->clone()});
 
   std::vector<double> alpha;
   alpha.reserve(ncv);
   std::vector<double> beta;
   beta.reserve(ncv);
 
-  // Hard-locked accepted eigenvectors (both blocks)
+  // Hard-locked accepted vectors [0; v]
   std::vector<BlockVec> Locked;
 
-  // Accepted right-nullspace basis
-  std::vector<std::unique_ptr<VectorInterface>> basis;
-  basis.reserve(k_target);
-
-  // If returning left space, keep them too
-  std::vector<std::unique_ptr<VectorInterface>> left_basis;
-
   auto tmp_m = vf.create_zero_of_size(m); // reused for ||A v||
+  auto w_m = vf.create_zero_of_size(m);
+  auto tmp_n = vf.create_zero_of_size(n);
   std::size_t restarts_since_accept = 0;
 
   for (std::size_t restart = 0; restart < opt.max_restarts; ++restart) {
@@ -354,9 +401,23 @@ find_nullspace_cyclic_lanczos_ex(const MatrixInterface &A,
     alpha.clear();
     beta.clear();
 
+    // ---- start vector z0 = [0; y0], orthogonal to the locked vectors
+    gs_against_basis(*y0);
+    double ny = y0->norm();
+    if (!std::isfinite(ny) || ny < 1e-14) {
+      y0 = random_right();
+      ny = y0->norm();
+      if (!(ny >= 1e-14))
+        break; // basis already spans R^n
+    }
+    y0->scale(1.0 / ny);
+    V.clear();
+    V.push_back(BlockVec{vf.create_zero_of_size(m), std::move(y0)});
+
     // ---- Krylov build up to l ≤ ncv
     BlockVec w = make_block(m, n);
     std::size_t local_steps = 0;
+    double beta_last = 0.0;
     for (std::size_t j = 0; j < ncv; ++j) {
       H_apply(A, V.back(), w);
 
@@ -369,8 +430,9 @@ find_nullspace_cyclic_lanczos_ex(const MatrixInterface &A,
 
       const double bj = block_norm(w);
       alpha.push_back(aj);
+      beta_last = bj;
 
-      if (bj < 1e-14 || V.size() >= ncv)
+      if (!std::isfinite(bj) || bj < 1e-14 || V.size() >= ncv)
         break;
 
       beta.push_back(bj);
@@ -383,196 +445,141 @@ find_nullspace_cyclic_lanczos_ex(const MatrixInterface &A,
     R.krylov_steps_total += local_steps;
 
     const std::size_t l = alpha.size();
-    if (l == 0)
+    if (l == 0 || !std::isfinite(beta_last))
       break;
 
-    // ---- tiny eigenproblem & interior selection (harmonic preferred)
-    TinyEV tev = opt.use_harmonic
-                     ? solve_tiny_harmonic(alpha, beta, opt.target_tau)
-                     : solve_tiny_tridiag(alpha, beta);
-
-    // ordering: harmonic => |mi| desc (closest to tau); plain => |lambda-tau|
-    // asc
-    std::vector<int> ord(tev.evals.size());
-    std::iota(ord.begin(), ord.end(), 0);
+    // ---- tiny problem & interior selection
+    TinyEV tev;
+    std::vector<int> ord;
     if (opt.use_harmonic) {
+      tev = solve_tiny_refined(alpha, beta, beta_last, opt.target_tau);
+      ord.resize(static_cast<std::size_t>(tev.evals.size()));
+      std::iota(ord.begin(), ord.end(), 0);
+      // singular values: smallest residual first
       std::stable_sort(ord.begin(), ord.end(), [&](int a, int b) {
-        return std::abs(tev.evals[a]) > std::abs(tev.evals[b]);
+        return tev.evals[a] < tev.evals[b];
       });
     } else {
+      tev = solve_tiny_tridiag(alpha, beta);
+      ord.resize(static_cast<std::size_t>(tev.evals.size()));
+      std::iota(ord.begin(), ord.end(), 0);
       std::stable_sort(ord.begin(), ord.end(), [&](int a, int b) {
         return std::abs(tev.evals[a] - opt.target_tau) <
                std::abs(tev.evals[b] - opt.target_tau);
       });
     }
-
-    // Reuse buffers across candidates
-    auto w_m = vf.create_zero_of_size(m);
-    auto tmp_n = vf.create_zero_of_size(n);
+    if (!tev.evals.allFinite() || !tev.evecs.allFinite()) {
+      if (opt.verbose)
+        std::cout << "[Cyclic] non-finite projected problem, random restart\n";
+      y0 = random_right();
+      continue;
+    }
 
     const std::size_t test_cap =
         std::min<std::size_t>(l, std::max<std::size_t>(k_target, 8));
     double best_res = std::numeric_limits<double>::infinity();
-    BlockVec zkeep{vf.create_zero_of_size(m), vf.create_zero_of_size(n)};
+    std::unique_ptr<VectorInterface> best_v; // best non-accepted candidate
     bool accepted_this_cycle = false;
 
-    for (std::size_t t = 0; t < test_cap; ++t) {
+    // Candidates with a (numerically) zero right block, i.e. pure [x; 0]
+    // directions, are skipped and do not count towards test_cap.
+    std::size_t tested = 0;
+    // Once a polish stalls at cg_maxit without reaching the threshold, the
+    // remaining (worse-ranked) candidates of this cycle are not polished:
+    // their residuals live on even smaller singular values, where CG is
+    // slowest, so they would burn cg_maxit iterations each for nothing.
+    bool polish_stalled = false;
+    for (std::size_t t = 0; t < ord.size() && tested < test_cap; ++t) {
       const int jbest = ord[t];
 
-      // z = V * y_j ; normalize
-      BlockVec z{vf.create_zero_of_size(m), vf.create_zero_of_size(n)};
-      for (int i = 0; i < static_cast<int>(l); ++i) {
-        const double c = tev.evecs(i, jbest);
-        z.top->add_scaled(*V[static_cast<std::size_t>(i)].top, c);
-        z.bottom->add_scaled(*V[static_cast<std::size_t>(i)].bottom, c);
-      }
-      block_normalize(z);
-
-      // candidate right vector v := bottom(z)
-      auto v = z.bottom->clone();
+      // candidate right vector v := bottom(V * c_j)
+      auto v = vf.create_zero_of_size(n);
+      for (std::size_t i = 0; i < l; ++i)
+        v->add_scaled(*V[i].bottom, tev.evecs(static_cast<int>(i), jbest));
 
       // GS vs accepted right-nullspace, normalize
-      for (auto &q : basis) {
-        const double c = v->dot(*q);
-        v->add_scaled(*q, -c);
-      }
+      gs_against_basis(*v);
       double nv = v->norm();
-      if (nv < 1e-14)
+      if (!std::isfinite(nv) || nv < 1e-8)
         continue;
       v->scale(1.0 / nv);
+      ++tested;
 
       // Pre-screen: raw residual (avoid polishing hopeless candidates)
       A.multiply(*v, *tmp_m);
-      const double rawRes = tmp_m->norm();
-      if (rawRes > prescreen_thresh) {
-        if (rawRes < best_res) {
-          best_res = rawRes;
-          zkeep = BlockVec{z.top->clone(), z.bottom->clone()};
+      double res = tmp_m->norm();
+      if (!std::isfinite(res))
+        continue;
+      if (res > prescreen_thresh || polish_stalled) {
+        if (res < best_res) {
+          best_res = res;
+          best_v = v->clone();
         }
-        if (opt.verbose)
-          std::cout << "[Cyclic] prescreen skip, ||A v||=" << rawRes
+        if (opt.verbose && !polish_stalled)
+          std::cout << "[Cyclic] prescreen skip, ||A v||=" << res
                     << "  (thr=" << prescreen_thresh << ")\n";
         continue;
       }
 
-      // POLISH: projector passes with (preconditioned) CG
+      // POLISH: projector passes v <- v - A^T (A A^T)^{-1} A v with
+      // (preconditioned) CG. An inexact CG solve can increase ||A v||, so a
+      // pass is kept only if it reduces the residual of the normalized v.
+      const double raw_res = res;
       std::size_t cg_its = 0;
-      for (int pass = 0; pass < std::max(1, opt.projector_passes); ++pass) {
+      bool hit_maxit = false;
+      for (int pass = 0;
+           pass < std::max(1, opt.projector_passes) && res > accept_thresh;
+           ++pass) {
         cg_its = cg_normal_eq_prec(A, vf, *tmp_m, *w_m, opt.precond_AAt,
                                    opt.cg_maxit, opt.cg_rel_tol,
                                    opt.cg_breakdown_tol)
                      .first;
         ++R.cg_solves;
-        if (cg_its >= opt.cg_maxit)
+        if (cg_its >= opt.cg_maxit) {
           ++R.cg_maxit_hits;
-        A.multiply_transpose(*w_m, *tmp_n);
-        v->add_scaled(*tmp_n, -1.0);
-
-        // re-GS + renorm
-        for (auto &q : basis) {
-          const double c = v->dot(*q);
-          v->add_scaled(*q, -c);
+          hit_maxit = true;
         }
-        nv = v->norm();
-        if (nv < 1e-14)
+        A.multiply_transpose(*w_m, *tmp_n);
+        auto vp = v->clone();
+        vp->add_scaled(*tmp_n, -1.0);
+        gs_against_basis(*vp);
+        const double np = vp->norm();
+        if (!std::isfinite(np) || np < 1e-14)
           break;
-        v->scale(1.0 / nv);
-
-        // refresh rhs for next pass or final residual
-        A.multiply(*v, *tmp_m);
-      }
-      if (nv < 1e-14)
-        continue;
-
-      const double resNull = tmp_m->norm();
-      if (resNull < best_res) {
-        best_res = resNull;
-        zkeep = BlockVec{z.top->clone(), z.bottom->clone()};
+        vp->scale(1.0 / np);
+        A.multiply(*vp, *w_m);
+        const double res_p = w_m->norm();
+        if (!(res_p < res))
+          break;
+        v = std::move(vp);
+        res = res_p;
+        tmp_m->copy_from(*w_m);
       }
       if (opt.verbose) {
-        std::cout << "[Cyclic] restart=" << restart
-                  << "  ||A v|| (polished)=" << resNull
+        std::cout << "[Cyclic] restart=" << restart << "  ||A v|| raw="
+                  << raw_res << "  (polished)=" << res
                   << "  accept_thr=" << accept_thresh << "  cg_its=" << cg_its
                   << "/" << opt.cg_maxit << "\n";
       }
 
-      if (resNull <= accept_thresh) {
-        // Accept: save right (and optional left) and hard-lock z
-        if (opt.return_left_space) {
-          R.left_null.push_back(z.top->clone());
-          // Ensure left vector is normalized consistently
-          const double nx = R.left_null.back()->norm();
-          if (nx > 0.0)
-            R.left_null.back()->scale(1.0 / nx);
-        }
+      if (res <= accept_thresh) {
+        Locked.push_back(BlockVec{vf.create_zero_of_size(m), v->clone()});
         basis.push_back(std::move(v));
-        Locked.push_back(
-            BlockVec{z.top->clone(), z.bottom->clone()}); // hard lock
         accepted_this_cycle = true;
-
-        if ((opt.nullity_known >= 0 &&
-             static_cast<int>(basis.size()) >= opt.nullity_known) ||
-            basis.size() >= k_target) {
+        if (basis.size() >= k_target) {
           R.right_null = std::move(basis);
           R.converged_to_target = true;
           return R;
         }
+        // earlier best_v is no longer orthogonal to the basis; it is
+        // re-orthogonalized at the next restart
+      } else {
+        polish_stalled = polish_stalled || hit_maxit;
+        if (res < best_res) {
+          best_res = res;
+          best_v = std::move(v);
+        }
       }
-    }
-
-    // Stuck? Try probe-polish on best-so-far occasionally
-    if (!accepted_this_cycle && (restarts_since_accept % 6 == 5)) {
-      auto vprobe = zkeep.bottom->clone();
-      for (auto &q : basis) {
-        const double c = vprobe->dot(*q);
-        vprobe->add_scaled(*q, -c);
-      }
-      double nv = vprobe->norm();
-      if (nv >= 1e-14)
-        vprobe->scale(1.0 / nv);
-
-      auto w_m2 = vf.create_zero_of_size(m);
-      auto tmp_n2 = vf.create_zero_of_size(n);
-      A.multiply(*vprobe, *tmp_m);
-      const std::size_t probe_cg_its =
-          cg_normal_eq_prec(A, vf, *tmp_m, *w_m2, opt.precond_AAt,
-                            opt.cg_maxit, opt.cg_rel_tol, opt.cg_breakdown_tol)
-              .first;
-      ++R.cg_solves;
-      if (probe_cg_its >= opt.cg_maxit)
-        ++R.cg_maxit_hits;
-      A.multiply_transpose(*w_m2, *tmp_n2);
-      vprobe->add_scaled(*tmp_n2, -1.0);
-
-      for (auto &q : basis) {
-        const double c = vprobe->dot(*q);
-        vprobe->add_scaled(*q, -c);
-      }
-      nv = vprobe->norm();
-      if (nv >= 1e-14)
-        vprobe->scale(1.0 / nv);
-
-      A.multiply(*vprobe, *tmp_m);
-      const double rprobe = tmp_m->norm();
-      if (rprobe < best_res) {
-        best_res = rprobe;
-        zkeep.bottom = vprobe->clone();
-        A.multiply(*zkeep.bottom, *zkeep.top);
-        block_normalize(zkeep);
-      }
-    }
-
-    // stopping if rank/nullity imply no further nulls
-    if (opt.nullity_known >= 0 &&
-        static_cast<int>(basis.size()) >= opt.nullity_known) {
-      R.right_null = std::move(basis);
-      R.converged_to_target = true;
-      return R;
-    }
-    if (opt.rank_known >= 0 && static_cast<int>(n) <= opt.rank_known) {
-      // full column rank ⇒ no right nulls
-      R.right_null = std::move(basis);
-      return R;
     }
 
     // Stagnation guard
@@ -580,57 +587,91 @@ find_nullspace_cyclic_lanczos_ex(const MatrixInterface &A,
       ++restarts_since_accept;
       if (opt.stagnation_restarts > 0 &&
           restarts_since_accept >= opt.stagnation_restarts) {
-        if (opt.verbose) {
+        if (opt.verbose)
           std::cout << "[Cyclic] stopping due to stagnation ("
                     << restarts_since_accept << " restarts without accept)\n";
-          if (R.cg_maxit_hits > 0)
-            std::cout << "[Cyclic] " << R.cg_maxit_hits << " of "
-                      << R.cg_solves << " polishing CG solves stopped at cg_maxit="
-                      << opt.cg_maxit
-                      << "; consider increasing cg_maxit or providing "
-                         "precond_AAt\n";
-        }
-        R.right_null = std::move(basis);
-        return R;
+        break;
       }
     } else {
       restarts_since_accept = 0;
     }
 
-    // ---- restart with the best interior candidate
-    if (accepted_this_cycle) {
-        // If we just found a vector, don't restart with it!
-        // Start fresh to find diffrent vectors.
-        zkeep.top = vf.create_random_of_size(m);
-        zkeep.bottom = vf.create_random_of_size(n);
-    }
-    
-    // Orthogonalize zkeep against Locked to avoid rediscovery
-    for (const auto &lz : Locked) {
-        double c = block_dot(lz, zkeep);
-        block_axpy(zkeep, lz, -c);
-    }
-    
-    block_normalize(zkeep);
-    V.clear();
-    V.push_back(std::move(zkeep));
+    // ---- restart with the best remaining candidate (random if none)
+    y0 = best_v ? std::move(best_v) : random_right();
   }
 
   // ---- robust fallback (randomized projector + gradient)
   if (basis.size() < k_target) {
-    const std::size_t need = k_target - basis.size();
-    const std::size_t tries = std::max<std::size_t>(need * 8, need);
-    std::size_t accepted = 0;
+    // Give up after a run of failures: when k exceeds the true nullity,
+    // every try fails and each costs up to grad_max_iters gradient steps.
+    const std::size_t max_consecutive_failures = 8;
+    std::size_t failures = 0;
     const double tol_accept = accept_thresh;
-    for (std::size_t t = 0; t < tries && accepted < need; ++t) {
+    while (basis.size() < k_target && failures < max_consecutive_failures) {
       if (try_project_random_to_nullspace(
-              A, vf, tol_accept, basis, opt.grad_max_iters, opt.frob_samples)) {
-        ++accepted;
-      }
+              A, vf, tol_accept, basis, opt.grad_max_iters, opt.frob_samples))
+        failures = 0;
+      else
+        ++failures;
     }
+    R.converged_to_target = basis.size() >= k_target;
+  }
+
+  if (opt.verbose && !R.converged_to_target) {
+    std::cout << "[Cyclic] found " << basis.size() << " of " << k_target
+              << " null vectors\n";
+    if (R.cg_maxit_hits > 0)
+      std::cout << "[Cyclic] " << R.cg_maxit_hits << " of " << R.cg_solves
+                << " polishing CG solves stopped at cg_maxit=" << opt.cg_maxit
+                << "; consider increasing cg_maxit or providing "
+                   "precond_AAt\n";
   }
 
   R.right_null = std::move(basis);
+  return R;
+}
+
+CyclicLanczosResult
+find_nullspace_cyclic_lanczos_ex(const MatrixInterface &A,
+                                 const VectorFactory &vf,
+                                 const CyclicLanczosOptions &opt) {
+  CyclicLanczosResult R = find_right_nullspace(A, vf, opt);
+  if (!opt.return_left_space || A.rows() == 0 || A.cols() == 0)
+    return R;
+
+  // Left null space = right null space of A^T, computed by a separate run
+  // (up to k vectors; with rank_known, nullity(A^T) = m - rank).
+  CyclicLanczosOptions lopt;
+  lopt.k = opt.k;
+  lopt.ncv = opt.ncv;
+  lopt.max_restarts = opt.max_restarts;
+  lopt.tol_abs = opt.tol_abs;
+  lopt.tol_rel = opt.tol_rel;
+  lopt.reorth = opt.reorth;
+  lopt.use_harmonic = opt.use_harmonic;
+  lopt.target_tau = opt.target_tau;
+  lopt.cg_maxit = opt.cg_maxit;
+  lopt.cg_rel_tol = opt.cg_rel_tol;
+  lopt.cg_breakdown_tol = opt.cg_breakdown_tol;
+  lopt.projector_passes = opt.projector_passes;
+  lopt.grad_max_iters = opt.grad_max_iters;
+  lopt.frob_samples = opt.frob_samples;
+  lopt.prescreen_factor = opt.prescreen_factor;
+  lopt.stagnation_restarts = opt.stagnation_restarts;
+  lopt.verbose = opt.verbose;
+  lopt.rank_known = opt.rank_known;
+  if (opt.rank_known >= 0) {
+    const int left_nullity = static_cast<int>(A.rows()) - opt.rank_known;
+    lopt.nullity_known =
+        std::max(0, std::min(left_nullity, static_cast<int>(opt.k)));
+  }
+  // precond_AAt is for A A^T; the transposed run needs A^T A, so it is not
+  // passed on.
+  TransposedMatrix At(A);
+  CyclicLanczosResult L = find_right_nullspace(At, vf, lopt);
+  R.left_null = std::move(L.right_null);
+  R.cg_solves += L.cg_solves;
+  R.cg_maxit_hits += L.cg_maxit_hits;
   return R;
 }
 

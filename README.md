@@ -179,7 +179,7 @@ CMake package support (`find_package(KraNS)` / `add_subdirectory`) is planned bu
     - `fullpivlu` — Full-pivot LU; rank via lu.rank(); kernel from lu.kernel()
     - `suitesparse` *(Optional: USED FOR BENCHMARKING)* — Direct multifrontal sparse QR factorization (SPQR) defining the "Memory Wall"
   - **Iterative (matrix-free)**:
-    - `cyclic` (augmented operator / harmonic interior on H(A), projector polishing, optional left nullspace)
+    - `cyclic` (Golub–Kahan-structured Lanczos on H(A), refined interior extraction, projector polishing, optional left nullspace)
     - `lobpcg` (Locally Optimal Block Preconditioned Conjugate Gradient method for finding the right nullspace)
     - `spectra` *(Optional: USED FOR BENCHMARKING)* — Implicitly Restarted Lanczos Method operating on normal equations (A^T A)
     - `primme` *(Optional: USED FOR BENCHMARKING)* — High-performance hybrid solver
@@ -259,7 +259,12 @@ variants (`find_nullspace_lobpcg_ex`, `find_nullspace_cyclic_lanczos_ex`) and ch
 **`cyclic` options** (`CyclicLanczosOptions`):
 - `cg_maxit` (default 80) — the projection step works only if its CG on `AAᵀ` converges.
   `CyclicLanczosResult::cg_maxit_hits` counts the CG solves that stopped at this limit.
-- `precond_AAt` — a preconditioner for `AAᵀ`.
+- `precond_AAt` — a preconditioner for `AAᵀ`. It must be a fixed linear SPD operator (e.g. a
+  polynomial in `AAᵀ` with fixed coefficients); an inner iteration whose step sizes depend on the
+  right-hand side, such as a few steepest-descent steps, is not a valid CG preconditioner.
+- Results depend on the random start vectors, i.e. on the `VectorFactory` seed. With the defaults
+  (`ncv` 48, `max_restarts` 80) the CLI finds the full null space of `data/mat1.ija` and
+  `mat3`–`mat6` for every seed tried (1–10).
 
 Measured on the 1-D difference operator `D`, `(D x)_i = x_{i+1} − x_i` of size `(n−1) × n` with
 `ker(D) = span{(1, …, 1)}` (`n = 1000`, one null vector, three random starts; see
@@ -270,8 +275,8 @@ Measured on the 1-D difference operator `D`, `(D x)_i = x_{i+1} − x_i` of size
 | `lobpcg`, defaults (`block_size` 1, `max_iters` 1000) | 1 000 | 0.02 s | no vector found |
 | `lobpcg`, `block_size` 1, unlimited iterations | 5 940 – 11 505 | 0.14 – 0.27 s | found |
 | `lobpcg`, `block_size` 16, unlimited iterations | 384 – 439 | 0.9 – 1.0 s | found |
-| `cyclic`, defaults (`cg_maxit` 80) | all 245 CG solves hit `cg_maxit` | 0.17 s | no vector found |
-| `cyclic`, `cg_maxit` 1000 | 1 CG solve | 0.007 s | found |
+| `cyclic`, defaults (`cg_maxit` 80) | all 30 CG solves hit `cg_maxit` | 0.15 s | no vector found |
+| `cyclic`, `cg_maxit` 1000 | 1 CG solve | 0.005 s | found |
 
 ## CLI
 
@@ -287,6 +292,7 @@ cd build/
   --input A.(mtx|ija) \
   [--out N.csv] [--report report.json]
   [--tol <rel_tol>]           # direct solvers only (default 1e-12)
+  [--seed <int>]              # RNG seed for iterative solvers (default 1; 0 = random)
 ```
 *(Note: `spectra`, `primme`, `slepc`, and `suitesparse` are only available if compiled with their respective CMake flags).*
 
@@ -301,6 +307,8 @@ cd build/
   --proj-passes <int>    # projector polish passes (1 or 2)
   --cg-maxit <int>       # CG iters for normal equations
   --cg-rel <float>       # CG relative tol
+  --prescreen <float>    # skip polishing if ||A v|| > f * ||A||_F (default 0.8)
+  --stagnation <int>     # stop after this many restarts without an accepted vector (default 30, 0 = off)
   --verbose              # progress output
   --left                 # also write N_left.csv (left nullspace)
 ```
