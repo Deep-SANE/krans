@@ -2,6 +2,114 @@
 
 KraNS is a matrix-free C++17 library for computing null-space bases of large sparse matrices.
 
+## Quick start
+
+The smallest complete use of KraNS: compute the null space of a matrix that is given **only** by two
+functions, `y = A x` (SpMV) and `y = Aᵀ x` (SpMᵀV). No matrix storage is required.
+
+The matrix here is the 1-D difference operator `D` of size `(n−1) × n`, `(D x)_i = x_{i+1} − x_i`.
+Its null space is known exactly: `ker(D) = span{(1, …, 1)}`, so the computed unit basis vector must be
+`±(1, …, 1)/√n`.
+
+```cpp
+// KraNS quick start: null space of the 1-D difference operator D, where
+// (D x)_i = x_{i+1} - x_i, D is (n-1) x n, and ker(D) = span{(1,...,1)}.
+#include "krans/Solvers/CyclicLanczosSolver.hpp"
+#include "krans/adapters/universal/StdMatrixAdapter.hpp"
+#include "krans/adapters/universal/StdVectorFactory.hpp"
+
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <vector>
+
+int main() {
+  const std::size_t n = 1000;
+
+  // y = D x  (SpMV)
+  auto Ax = [n](const std::vector<double> &x, std::vector<double> &y) {
+    for (std::size_t i = 0; i + 1 < n; ++i) y[i] = x[i + 1] - x[i];
+  };
+  // y = D^T x  (SpMTV)
+  auto ATx = [n](const std::vector<double> &x, std::vector<double> &y) {
+    for (std::size_t j = 0; j < n; ++j)
+      y[j] = (j > 0 ? x[j - 1] : 0.0) - (j + 1 < n ? x[j] : 0.0);
+  };
+
+  krans::universal::StdMatrixAdapter A(n - 1, n, Ax, ATx);
+  krans::universal::StdVectorFactory vf(n, /*seed=*/42);
+
+  krans::solvers::CyclicLanczosOptions opt;
+  opt.k = 1;           // number of null vectors to compute
+  opt.cg_maxit = 1000; // inner CG on D D^T (ill-conditioned for large n)
+  auto N = krans::solvers::find_nullspace_cyclic_lanczos(A, vf, opt);
+  std::printf("null vectors found    : %zu\n", N.size());
+  if (N.size() != 1) return 1;
+
+  // Check: ||D v|| ~ 0 and v = +-(1,...,1)/sqrt(n).
+  krans::universal::StdVectorAdapter r(n - 1);
+  A.multiply(*N[0], r);
+  const double *v = N[0]->data();
+  double err = 0.0;
+  for (std::size_t i = 0; i < n; ++i)
+    err = std::max(err, std::abs(std::abs(v[i]) - 1.0 / std::sqrt(double(n))));
+
+  std::printf("||D v||               : %.3e\n", r.norm());
+  std::printf("max ||v_i|-1/sqrt(n)| : %.3e\n", err);
+  return err < 1e-6 ? 0 : 1;
+}
+```
+
+This file is [`examples/quickstart.cpp`](examples/quickstart.cpp). Build and run it:
+
+```bash
+cmake -S . -B build
+cmake --build build --target krans_quickstart -j
+./build/krans_quickstart
+```
+
+Expected output:
+
+```
+null vectors found    : 1
+||D v||               : 1.520e-12
+max ||v_i|-1/sqrt(n)| : 1.485e-13
+```
+
+Notes:
+- `StdMatrixAdapter` wraps any callables with the signature
+  `void(const std::vector<double>& x, std::vector<double>& y)`; `y` is preallocated to the right size.
+- `StdVectorFactory` creates the work vectors the solver needs (seeded for reproducibility).
+- The result is a vector of `std::unique_ptr<krans::VectorInterface>`; `->data()` gives the raw values.
+
+## Header-only or compiled?
+
+KraNS is **not header-only** — it has to be built and linked.
+
+| Part | Where | Form |
+|---|---|---|
+| Interfaces (`MatrixInterface`, `VectorInterface`, `VectorFactory`) | `include/krans/` | header-only |
+| Adapters (universal `Std*`, Eigen `Eigen*`) | `include/krans/adapters/` | header-only |
+| Utilities (Gram–Schmidt, projection) | `src/Utils/` | static library `krans_core` |
+| Solvers (`cyclic`, `lobpcg`, dense reference solvers, optional ones), matrix I/O | `src/Solvers/`, `src/IO/` | static library `krans_eigen` (depends on `krans_core`) |
+
+- Link against **`krans_eigen`**; it pulls in `krans_core`.
+- **Eigen** is required to *build* KraNS (it is used internally for the small dense projected problems;
+  CMake fetches Eigen 3.4 if it is not installed). Your own code does not need to include Eigen when it uses
+  only the universal `Std*` adapters, as in the quick start.
+
+Using KraNS from your own code today:
+1. **Inside the KraNS build** — add an executable to `CMakeLists.txt` the same way `krans_quickstart` is added
+   (`target_link_libraries(<your_target> PRIVATE krans_eigen)`).
+2. **Plain compiler command** — after building KraNS into `build/`:
+   ```bash
+   g++ -std=c++17 -O2 -I path/to/krans/include my_app.cpp \
+       path/to/krans/build/libkrans_eigen.a path/to/krans/build/libkrans_core.a -o my_app
+   ```
+   The static libraries are built with link-time optimization, so use the same compiler that built KraNS.
+
+CMake package support (`find_package(KraNS)` / `add_subdirectory`) is planned but not available yet.
+
 ## Features
 
 - **Abstract interfaces** for matrix and vector operations (Matrix-Free paradigm)

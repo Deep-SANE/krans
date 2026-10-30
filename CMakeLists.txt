@@ -35,6 +35,7 @@ option(ENABLE_PRIMME "Enable PRIMME integration" OFF)
 option(ENABLE_SLEPC "Enable SLEPc integration" OFF)
 option(ENABLE_SUITESPARSE "Enable SuiteSparse integration" OFF)
 option(BUILD_KRANS_CLI "Build the krans_nullspace CLI tool" ON)
+option(KRANS_BUILD_EXAMPLES "Build examples" ON)
 
 if(ENABLE_SPECTRA)
   FetchContent_Declare(
@@ -202,6 +203,12 @@ endif()
 if(BUILD_KRANS_CLI)
   add_executable(krans_nullspace apps/krans_nullspace.cpp)
   target_link_libraries(krans_nullspace PRIVATE krans_eigen)
+endif()
+
+# ---------- Examples ----------
+if(KRANS_BUILD_EXAMPLES)
+  add_executable(krans_quickstart examples/quickstart.cpp)
+  target_link_libraries(krans_quickstart PRIVATE krans_eigen)
 endif()
 
 # ---------- Tests ----------
