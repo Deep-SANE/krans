@@ -16,12 +16,30 @@ include(FetchContent)
 # ---- Eigen3 ----
 # Check user-supplied cache variable or environment variable
 if(NOT Eigen3_FOUND AND NOT DEFINED EIGEN3_INCLUDE_DIR)
-  if(DEFINED ENV{EIGEN3_ROOT})
-    set(EIGEN3_INCLUDE_DIR "$ENV{EIGEN3_ROOT}")
-  elseif(DEFINED ENV{EIGEN_DIR})
-    set(EIGEN3_INCLUDE_DIR "$ENV{EIGEN_DIR}")
-  elseif(DEFINED ENV{EIGEN3_DIR})
-    set(EIGEN3_INCLUDE_DIR "$ENV{EIGEN3_DIR}")
+  foreach(_var EIGEN3_ROOT EIGEN_DIR EIGEN3_DIR EIGEN_ROOT EIGEN_INC EIGEN3_INCLUDE_DIR)
+    if(DEFINED ENV{${_var}} AND NOT EIGEN3_INCLUDE_DIR)
+      set(EIGEN3_INCLUDE_DIR "$ENV{${_var}}")
+    endif()
+  endforeach()
+endif()
+
+# Auto-probe common HPC package paths (e.g. LSU HPC SuperMike/QueenBee)
+if(NOT Eigen3_FOUND AND NOT EIGEN3_INCLUDE_DIR)
+  file(GLOB _hpc_eigen_candidates
+    "/usr/local/packages/eigen/*/*/include/eigen3"
+    "/usr/local/packages/eigen/*/include/eigen3"
+    "/usr/local/packages/eigen/*/*/include"
+    "/usr/local/packages/eigen/*/include"
+  )
+  if(_hpc_eigen_candidates)
+    list(REVERSE _hpc_eigen_candidates)
+    foreach(_cand IN LISTS _hpc_eigen_candidates)
+      if(EXISTS "${_cand}/Eigen/Core" AND NOT EIGEN3_INCLUDE_DIR)
+        set(EIGEN3_INCLUDE_DIR "${_cand}")
+        message(STATUS "Auto-detected HPC Eigen: ${EIGEN3_INCLUDE_DIR}")
+        break()
+      endif()
+    endforeach()
   endif()
 endif()
 
@@ -63,7 +81,13 @@ if(NOT Eigen3_FOUND)
   endif()
 
   if(USER_EIGEN_PATH)
+    # Extract path component if terminal buffer contained leading commands
+    if(USER_EIGEN_PATH MATCHES "([/~][^ \t\r\n]+)")
+      set(USER_EIGEN_PATH "${CMAKE_MATCH_1}")
+    endif()
+    string(STRIP "${USER_EIGEN_PATH}" USER_EIGEN_PATH)
     string(REGEX REPLACE "^~" "$ENV{HOME}" USER_EIGEN_PATH "${USER_EIGEN_PATH}")
+
     if(EXISTS "${USER_EIGEN_PATH}/Eigen/Core")
       set(EIGEN3_HEADER_DIR "${USER_EIGEN_PATH}")
     elseif(EXISTS "${USER_EIGEN_PATH}/include/eigen3/Eigen/Core")
