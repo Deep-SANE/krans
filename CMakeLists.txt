@@ -14,7 +14,77 @@ endif()
 include(FetchContent)
 
 # ---- Eigen3 ----
-find_package(Eigen3 QUIET)
+# Check user-supplied cache variable or environment variable
+if(NOT Eigen3_FOUND AND NOT DEFINED EIGEN3_INCLUDE_DIR)
+  if(DEFINED ENV{EIGEN3_ROOT})
+    set(EIGEN3_INCLUDE_DIR "$ENV{EIGEN3_ROOT}")
+  elseif(DEFINED ENV{EIGEN_DIR})
+    set(EIGEN3_INCLUDE_DIR "$ENV{EIGEN_DIR}")
+  elseif(DEFINED ENV{EIGEN3_DIR})
+    set(EIGEN3_INCLUDE_DIR "$ENV{EIGEN3_DIR}")
+  endif()
+endif()
+
+if(EIGEN3_INCLUDE_DIR)
+  if(EXISTS "${EIGEN3_INCLUDE_DIR}/Eigen/Core")
+    set(EIGEN3_HEADER_DIR "${EIGEN3_INCLUDE_DIR}")
+  elseif(EXISTS "${EIGEN3_INCLUDE_DIR}/include/eigen3/Eigen/Core")
+    set(EIGEN3_HEADER_DIR "${EIGEN3_INCLUDE_DIR}/include/eigen3")
+  elseif(EXISTS "${EIGEN3_INCLUDE_DIR}/include/Eigen/Core")
+    set(EIGEN3_HEADER_DIR "${EIGEN3_INCLUDE_DIR}/include")
+  endif()
+  if(EIGEN3_HEADER_DIR)
+    set(Eigen3_FOUND TRUE)
+    if(NOT TARGET Eigen3::Eigen)
+      add_library(Eigen3::Eigen INTERFACE IMPORTED)
+      target_include_directories(Eigen3::Eigen INTERFACE "${EIGEN3_HEADER_DIR}")
+    endif()
+    message(STATUS "Found Eigen3: ${EIGEN3_HEADER_DIR}")
+  endif()
+endif()
+
+if(NOT Eigen3_FOUND)
+  find_package(Eigen3 QUIET)
+endif()
+
+# If still not detected, ask the user interactively before downloading
+if(NOT Eigen3_FOUND)
+  set(USER_EIGEN_PATH "")
+  execute_process(
+    COMMAND bash -c "if [ -e /dev/tty ] && [ -r /dev/tty ] && [ -z \"$CI\" ] && [ -z \"$NONINTERACTIVE\" ]; then exit 0; else exit 1; fi"
+    RESULT_VARIABLE CAN_PROMPT
+  )
+  if(CAN_PROMPT EQUAL 0)
+    execute_process(
+      COMMAND bash -c "read -r -p 'Eigen3 not detected. Path to an existing install, or press Enter to download automatically: ' ans </dev/tty; echo \"\$ans\""
+      OUTPUT_VARIABLE USER_EIGEN_PATH
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+  endif()
+
+  if(USER_EIGEN_PATH)
+    string(REGEX REPLACE "^~" "$ENV{HOME}" USER_EIGEN_PATH "${USER_EIGEN_PATH}")
+    if(EXISTS "${USER_EIGEN_PATH}/Eigen/Core")
+      set(EIGEN3_HEADER_DIR "${USER_EIGEN_PATH}")
+    elseif(EXISTS "${USER_EIGEN_PATH}/include/eigen3/Eigen/Core")
+      set(EIGEN3_HEADER_DIR "${USER_EIGEN_PATH}/include/eigen3")
+    elseif(EXISTS "${USER_EIGEN_PATH}/include/Eigen/Core")
+      set(EIGEN3_HEADER_DIR "${USER_EIGEN_PATH}/include")
+    else()
+      message(WARNING "Specified path '${USER_EIGEN_PATH}' does not contain Eigen/Core.")
+    endif()
+
+    if(EIGEN3_HEADER_DIR)
+      set(Eigen3_FOUND TRUE)
+      if(NOT TARGET Eigen3::Eigen)
+        add_library(Eigen3::Eigen INTERFACE IMPORTED)
+        target_include_directories(Eigen3::Eigen INTERFACE "${EIGEN3_HEADER_DIR}")
+      endif()
+      message(STATUS "Using user-specified Eigen3: ${EIGEN3_HEADER_DIR}")
+    endif()
+  endif()
+endif()
+
 if(NOT Eigen3_FOUND)
   message(STATUS "Eigen3 not found, fetching...")
   FetchContent_Declare(
