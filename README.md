@@ -25,101 +25,45 @@ with $`n = 1000`$, $`N = 3`$ and $`c = \tfrac12`$. Its null space is known exact
 $`N`$-dimensional, spanned by the vectors $`v_0, \dots, v_{N-1}`$, where $`(v_j)_{j+kN} = c^k`$ for
 $`k = 0, 1, \dots`$ and all other entries are zero. $`A`$ is also well-conditioned: its nonzero
 singular values lie in $`[1-c,\, 1+c]`$ for any $`n`$, so both iterative solvers converge with default
-options. The example runs both, checks each computed basis against the exact one, and prints a
-comparison.
+options.
+
+The core of the example — define the two operators, wrap them, call a solver, and read the result:
 
 ```cpp
-// KraNS quick start: null space of A, (n-N) x n, (A x)_i = x_{i+N} - c x_i.
-// ker(A) has dimension N; the basis vector v_j has entries c^k at positions
-// j + kN (k = 0, 1, ...). The nonzero singular values lie in [1-c, 1+c].
-//
-// Usage: krans_quickstart [cyclic|lobpcg|both]   (default: both)
-#include "krans/Solvers/CyclicLanczosSolver.hpp"
-#include "krans/Solvers/LOBPCGSolver.hpp"
-#include "krans/adapters/universal/StdMatrixAdapter.hpp"
-#include "krans/adapters/universal/StdVectorFactory.hpp"
+const std::size_t n = 1000, N = 3;
+const double c = 0.5;
 
-#include <algorithm>
-#include <chrono>
-#include <cmath>
-#include <cstdio>
-#include <string>
-#include <vector>
+// y = A x  (SpMV)
+auto Ax = [=](const std::vector<double> &x, std::vector<double> &y) {
+  for (std::size_t i = 0; i + N < n; ++i) y[i] = x[i + N] - c * x[i];
+};
+// y = A^T x  (SpMTV)
+auto ATx = [=](const std::vector<double> &x, std::vector<double> &y) {
+  for (std::size_t j = 0; j < n; ++j)
+    y[j] = (j >= N ? x[j - N] : 0.0) - (j + N < n ? c * x[j] : 0.0);
+};
 
-int main(int argc, char **argv) {
-  const std::string which = argc > 1 ? argv[1] : "both";
-  if (which != "cyclic" && which != "lobpcg" && which != "both") {
-    std::fprintf(stderr, "usage: %s [cyclic|lobpcg|both]\n", argv[0]);
-    return 2;
-  }
+// A as an (n-N) x n matrix-free operator, plus a factory for work vectors
+krans::universal::StdMatrixAdapter A(n - N, n, Ax, ATx);
+krans::universal::StdVectorFactory vf(n, /*seed=*/42);
 
-  const std::size_t n = 1000, N = 3;
-  const double c = 0.5;
+// Compute N null vectors with the cyclic Lanczos solver
+krans::solvers::CyclicLanczosOptions opt;
+opt.k = N;
+auto U = krans::solvers::find_nullspace_cyclic_lanczos(A, vf, opt);
 
-  // y = A x  (SpMV)
-  auto Ax = [=](const std::vector<double> &x, std::vector<double> &y) {
-    for (std::size_t i = 0; i + N < n; ++i) y[i] = x[i + N] - c * x[i];
-  };
-  // y = A^T x  (SpMTV)
-  auto ATx = [=](const std::vector<double> &x, std::vector<double> &y) {
-    for (std::size_t j = 0; j < n; ++j)
-      y[j] = (j >= N ? x[j - N] : 0.0) - (j + N < n ? c * x[j] : 0.0);
-  };
-
-  krans::universal::StdMatrixAdapter A(n - N, n, Ax, ATx);
-  krans::universal::StdVectorFactory vf(n, /*seed=*/42);
-
-  // Check a computed basis U: ||A u|| ~ 0 and u lies in span{v_0, ..., v_{N-1}}.
-  int failures = 0;
-  auto report = [&](const char *name, const auto &U, double seconds) {
-    double max_res = 0.0, max_dist = 0.0;
-    krans::universal::StdVectorAdapter r(n - N);
-    for (const auto &u : U) {
-      A.multiply(*u, r);
-      max_res = std::max(max_res, r.norm());
-      std::vector<double> d(u->data(), u->data() + n);
-      for (std::size_t j = 0; j < N; ++j) { // subtract projection onto v_j
-        double dot = 0.0, vv = 0.0;
-        for (std::size_t i = j, k = 0; i < n; i += N, ++k) {
-          dot += d[i] * std::pow(c, k);
-          vv += std::pow(c, 2 * k);
-        }
-        for (std::size_t i = j, k = 0; i < n; i += N, ++k)
-          d[i] -= dot / vv * std::pow(c, k);
-      }
-      double dist = 0.0;
-      for (double e : d) dist += e * e;
-      max_dist = std::max(max_dist, std::sqrt(dist));
-    }
-    std::printf("%-8s %-9zu %-13.1e %-20.1e %.3f s\n", name, U.size(),
-                max_res, max_dist, seconds);
-    if (U.size() != N || max_dist > 1e-8) ++failures;
-  };
-  auto since = [](auto t0) {
-    return std::chrono::duration<double>(std::chrono::steady_clock::now() - t0)
-        .count();
-  };
-
-  std::printf("solver   vectors   max ||A u||   max dist(u, ker A)   time\n");
-  if (which != "lobpcg") {
-    krans::solvers::CyclicLanczosOptions opt;
-    opt.k = N; // number of null vectors to compute
-    auto t0 = std::chrono::steady_clock::now();
-    auto U = krans::solvers::find_nullspace_cyclic_lanczos(A, vf, opt);
-    report("cyclic", U, since(t0));
-  }
-  if (which != "cyclic") {
-    krans::solvers::LOBPCGOptions opt;
-    opt.nev = N; // number of null vectors to compute
-    auto t0 = std::chrono::steady_clock::now();
-    auto U = krans::solvers::find_nullspace_lobpcg(A, vf, opt);
-    report("lobpcg", U, since(t0));
-  }
-  return failures == 0 ? 0 : 1;
+// U holds an orthonormal basis of ker(A): U.size() vectors of length n
+for (const auto &u : U) {
+  std::vector<double> v(u->data(), u->data() + u->size());
+  // ... use v
 }
 ```
 
-This file is [`examples/quickstart.cpp`](examples/quickstart.cpp). Build and run it:
+To use LOBPCG instead, replace the solver call with `krans::solvers::LOBPCGOptions opt; opt.nev = N;` and
+`krans::solvers::find_nullspace_lobpcg(A, vf, opt)`.
+
+The complete program is [`examples/quickstart.cpp`](examples/quickstart.cpp). It runs both solvers, checks
+each computed basis against the exact null space, and prints a comparison. Build and run it:
 
 ```bash
 cmake -S . -B build
@@ -131,16 +75,15 @@ Expected output (timings vary by machine):
 
 ```
 solver   vectors   max ||A u||   max dist(u, ker A)   time
-cyclic   3         5.4e-13       6.1e-13              0.012 s
-lobpcg   3         3.4e-11       6.3e-11              0.006 s
+cyclic   3         6.4e-16       7.6e-16              0.009 s
+lobpcg   3         3.5e-11       6.4e-11              0.007 s
 ```
 
 Notes:
 - `StdMatrixAdapter` wraps any callables with the signature
   `void(const std::vector<double>& x, std::vector<double>& y)`; `y` is preallocated to the right size.
 - `StdVectorFactory` creates the work vectors the solvers need (seeded for reproducibility).
-- The result is a vector of `std::unique_ptr<krans::VectorInterface>`, an orthonormal basis of the
-  computed null space; `->data()` gives the raw values.
+- The result is a `std::vector` of `std::unique_ptr<krans::VectorInterface>`.
 - Ill-conditioned matrices may need tuned options; see
   [Convergence of the iterative solvers](#convergence-of-the-iterative-solvers).
 
