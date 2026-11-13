@@ -315,4 +315,25 @@ cd build/
 
 ## Origin / Credits
 
-KraNS originated in the master’s thesis of Alexandr Krastenov (CTU in Prague, Faculty of Information Technology), originally developed at [gitlab.fit.cvut.cz/krastale/dp-sparse-nullspace](https://gitlab.fit.cvut.cz/krastale/dp-sparse-nullspace).
+KraNS originated in the master's thesis of Alexandr Krastenov, supervised by Daniel Langr at the
+Czech Technical University in Prague, Faculty of Information Technology. The thesis describes the
+design of the library and its solvers and evaluates them against established packages:
+
+> A. Krastenov. *Sparse Null Space Solver in C++.* Master's thesis, Czech Technical University in
+> Prague, Faculty of Information Technology, 2026. <https://hdl.handle.net/10467/179985>
+
+The original thesis code was developed at
+[gitlab.fit.cvut.cz/krastale/dp-sparse-nullspace](https://gitlab.fit.cvut.cz/krastale/dp-sparse-nullspace).
+
+If you use KraNS in your work, please cite the thesis:
+
+```bibtex
+@mastersthesis{Krastenov2026,
+  author = {Alexandr Krastenov},
+  title  = {Sparse Null Space Solver in {C++}},
+  school = {Czech Technical University in Prague, Faculty of Information Technology},
+  type   = {Master's thesis},
+  year   = {2026},
+  url    = {https://hdl.handle.net/10467/179985}
+}
+```
