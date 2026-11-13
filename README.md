@@ -1,5 +1,13 @@
 # KraNS — Krastenov NullSpace
 
+<p align="center">
+  <img alt="C++17" src="https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white">
+  <img alt="CMake 3.14+" src="https://img.shields.io/badge/CMake-3.14%2B-064F8C?logo=cmake&logoColor=white">
+  <img alt="Eigen 3" src="https://img.shields.io/badge/Eigen-3-2E7D32">
+  <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow">
+  <img alt="Focus: Null space | Matrix-free | Sparse linear algebra" src="https://img.shields.io/badge/Focus-Null%20space%20%7C%20Matrix--free%20%7C%20Sparse%20linear%20algebra-8A2BE2">
+</p>
+
 KraNS is a matrix-free C++17 library for computing null-space bases of large sparse matrices.
 
 ## Quick start
