@@ -15,7 +15,7 @@ KraNS is a matrix-free C++17 library for computing null-space bases of large spa
 The smallest complete use of KraNS: compute the null space of a matrix that is given **only** by two
 functions, $`y = Ax`$ (SpMV) and $`y = A^\top x`$ (SpMᵀV). No matrix storage is required.
 
-The matrix here is $`A \in \mathbb{R}^{(n-N) \times n}`$ defined by
+The matrix here is the $`(n-N) \times n`$ matrix $`A`$ defined by
 
 ```math
 (Ax)_i = x_{i+N} - c\,x_i, \qquad i = 0, \dots, n-N-1,
@@ -223,8 +223,8 @@ variants (`find_nullspace_lobpcg_ex`, `find_nullspace_cyclic_lanczos_ex`) and ch
   (`ncv` 48, `max_restarts` 80) the CLI finds the full null space of `data/mat1.ija` and
   `mat3`–`mat6` for every seed tried (1–10).
 
-Measured on the 1-D difference operator $`D \in \mathbb{R}^{(n-1) \times n}`$, $`(Dx)_i = x_{i+1} - x_i`$,
-with $`\ker(D) = \operatorname{span}\{(1, \dots, 1)\}`$ ($`n = 1000`$, one null vector, three random
+Measured on the 1-D difference operator, the $`(n-1) \times n`$ matrix $`D`$ with $`(Dx)_i = x_{i+1} - x_i`$
+and $`\ker(D) = \mathrm{span}\{(1, \dots, 1)\}`$ ($`n = 1000`$, one null vector, three random
 starts; see
 [`tests/test_difference_operator.cpp`](tests/test_difference_operator.cpp)):
 
@@ -308,7 +308,7 @@ cd build/
   --out results/nullspace.csv --report results/summary.json
   ```
 ### Notes
-- `N.csv` holds an $`n \times k`$ matrix $`N`$ whose columns form a basis of $`\ker(A)`$: any solution of $`Av = 0`$ can be written as $`v = Ny`$ for some $`y \in \mathbb{R}^k`$.
+- `N.csv` holds an $`n \times k`$ matrix $`N`$ whose columns form a basis of $`\ker(A)`$: any solution of $`Av = 0`$ can be written as $`v = Ny`$ for some vector $`y`$ of length $`k`$.
 - For direct solvers, `--tol` is a relative rank threshold; loosen to detect larger near-null subspaces.
 - For iterative solvers (`cyclic`, `lobpcg`, `primme`, `spectra`), use `--k` to request the number of right-null vectors you want to extract. For `cyclic`, `--left` writes `N_left.csv`.
 - The framework includes a post-processing filter that validates every computed vector against $`\|Av\|_2 \lt \tau`$ to guarantee physical correctness regardless of the underlying algorithm's algebraic convergence.
