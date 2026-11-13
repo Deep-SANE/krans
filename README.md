@@ -5,14 +5,20 @@ KraNS is a matrix-free C++17 library for computing null-space bases of large spa
 ## Quick start
 
 The smallest complete use of KraNS: compute the null space of a matrix that is given **only** by two
-functions, `y = A x` (SpMV) and `y = Aᵀ x` (SpMᵀV). No matrix storage is required.
+functions, $`y = Ax`$ (SpMV) and $`y = A^\top x`$ (SpMᵀV). No matrix storage is required.
 
-The matrix here is `A` of size `(n−N) × n` with `(A x)_i = x_{i+N} − c·x_i` (`n = 1000`, `N = 3`,
-`c = ½`). Its null space is known exactly: it is `N`-dimensional, spanned by the vectors `v_j`
-(`j = 0, …, N−1`) that have entries `c^k` at positions `j + kN` (`k = 0, 1, …`) and zeros elsewhere.
-`A` is also well-conditioned: its nonzero singular values lie in `[1−c, 1+c]` for any `n`, so both
-iterative solvers converge with default options. The example runs both, checks each computed basis
-against the exact one, and prints a comparison.
+The matrix here is $`A \in \mathbb{R}^{(n-N) \times n}`$ defined by
+
+```math
+(Ax)_i = x_{i+N} - c\,x_i, \qquad i = 0, \dots, n-N-1,
+```
+
+with $`n = 1000`$, $`N = 3`$ and $`c = \tfrac12`$. Its null space is known exactly: it is
+$`N`$-dimensional, spanned by the vectors $`v_0, \dots, v_{N-1}`$, where $`(v_j)_{j+kN} = c^k`$ for
+$`k = 0, 1, \dots`$ and all other entries are zero. $`A`$ is also well-conditioned: its nonzero
+singular values lie in $`[1-c,\, 1+c]`$ for any $`n`$, so both iterative solvers converge with default
+options. The example runs both, checks each computed basis against the exact one, and prints a
+comparison.
 
 ```cpp
 // KraNS quick start: null space of A, (n-N) x n, (A x)_i = x_{i+N} - c x_i.
@@ -175,13 +181,13 @@ CMake package support (`find_package(KraNS)` / `add_subdirectory`) is planned bu
   - **Direct (dense/sparse-factorization) reference solvers**
     - `svd` — Jacobi/BDC SVD with FULL V; take trailing V columns
     - `qrcp` — Column-pivoted QR; rank via qr.rank(); explicit kernel via triangular solve + unpermutation
-    - `cod` — Complete orthogonal decomposition; trailing Z with best of {Z_k, P*Z_k, P^T*Z_k} 
+    - `cod` — Complete orthogonal decomposition; trailing $`Z`$ with best of $`\{Z_k,\ PZ_k,\ P^\top Z_k\}`$
     - `fullpivlu` — Full-pivot LU; rank via lu.rank(); kernel from lu.kernel()
     - `suitesparse` *(Optional: USED FOR BENCHMARKING)* — Direct multifrontal sparse QR factorization (SPQR) defining the "Memory Wall"
   - **Iterative (matrix-free)**:
-    - `cyclic` (Lanczos on H(A) run as Golub–Kahan bidiagonalization, refined interior extraction, projector polishing, optional left nullspace)
+    - `cyclic` (Lanczos on $`H(A)`$ run as Golub–Kahan bidiagonalization, refined interior extraction, projector polishing, optional left nullspace)
     - `lobpcg` (Locally Optimal Block Preconditioned Conjugate Gradient method for finding the right nullspace)
-    - `spectra` *(Optional: USED FOR BENCHMARKING)* — Implicitly Restarted Lanczos Method operating on normal equations (A^T A)
+    - `spectra` *(Optional: USED FOR BENCHMARKING)* — Implicitly Restarted Lanczos Method operating on normal equations ($`A^\top A`$)
     - `primme` *(Optional: USED FOR BENCHMARKING)* — High-performance hybrid solver
     - `slepc` *(Optional: USED FOR BENCHMARKING)* — Distributed HPC standard utilizing SVDCYCLIC
 
@@ -240,9 +246,9 @@ Or you can run cross-validation of all available solvers (RREF verification)
 ## Convergence of the iterative solvers
 
 The matrix-free solvers converge at a rate governed by the conditioning of the operators they iterate
-with: `AᵀA` for `lobpcg`, and `AAᵀ` for the inner CG that `cyclic` uses to project candidates onto
-`ker(A)`. For ill-conditioned `A` — e.g. discretized differential operators, where the condition number
-grows like `n²` — the default iteration limits can be too small. The solvers then return **fewer vectors
+with: $`A^\top A`$ for `lobpcg`, and $`AA^\top`$ for the inner CG that `cyclic` uses to project
+candidates onto $`\ker(A)`$. For ill-conditioned $`A`$ — e.g. discretized differential operators, where
+the condition number grows like $`n^2`$ — the default iteration limits can be too small. The solvers then return **fewer vectors
 than requested** instead of failing loudly.
 
 **Detecting it.** Compare the number of returned vectors with the number requested, or use the `_ex`
@@ -254,20 +260,21 @@ variants (`find_nullspace_lobpcg_ex`, `find_nullspace_cyclic_lanczos_ex`) and ch
   `iters`, `accept_threshold` and `best_unaccepted_residual` (how close a non-converged run got).
 - `block_size` (default 0 = `min(16, nev)`) — values above `nev` are honored; the extra vectors cut the
   iteration count sharply but make each iteration more expensive.
-- `M_inv` — a preconditioner for `AᵀA`, the standard way to speed up convergence when one is available.
+- `M_inv` — a preconditioner for $`A^\top A`$, the standard way to speed up convergence when one is available.
 
 **`cyclic` options** (`CyclicLanczosOptions`):
-- `cg_maxit` (default 80) — the projection step works only if its CG on `AAᵀ` converges.
+- `cg_maxit` (default 80) — the projection step works only if its CG on $`AA^\top`$ converges.
   `CyclicLanczosResult::cg_maxit_hits` counts the CG solves that stopped at this limit.
-- `precond_AAt` — a preconditioner for `AAᵀ`. It must be a fixed linear SPD operator (e.g. a
-  polynomial in `AAᵀ` with fixed coefficients); an inner iteration whose step sizes depend on the
+- `precond_AAt` — a preconditioner for $`AA^\top`$. It must be a fixed linear SPD operator (e.g. a
+  polynomial in $`AA^\top`$ with fixed coefficients); an inner iteration whose step sizes depend on the
   right-hand side, such as a few steepest-descent steps, is not a valid CG preconditioner.
 - Results depend on the random start vectors, i.e. on the `VectorFactory` seed. With the defaults
   (`ncv` 48, `max_restarts` 80) the CLI finds the full null space of `data/mat1.ija` and
   `mat3`–`mat6` for every seed tried (1–10).
 
-Measured on the 1-D difference operator `D`, `(D x)_i = x_{i+1} − x_i` of size `(n−1) × n` with
-`ker(D) = span{(1, …, 1)}` (`n = 1000`, one null vector, three random starts; see
+Measured on the 1-D difference operator $`D \in \mathbb{R}^{(n-1) \times n}`$, $`(Dx)_i = x_{i+1} - x_i`$,
+with $`\ker(D) = \operatorname{span}\{(1, \dots, 1)\}`$ ($`n = 1000`$, one null vector, three random
+starts; see
 [`tests/test_difference_operator.cpp`](tests/test_difference_operator.cpp)):
 
 | Solver and settings | Iterations | Time | Result |
@@ -350,10 +357,10 @@ cd build/
   --out results/nullspace.csv --report results/summary.json
   ```
 ### Notes
-- `N.csv` is `n x k`; each column is a basis vector of `ker(A)`. Any solution of `A v = 0`can be written as `v = N * c`.
+- `N.csv` holds an $`n \times k`$ matrix $`N`$ whose columns form a basis of $`\ker(A)`$: any solution of $`Av = 0`$ can be written as $`v = Ny`$ for some $`y \in \mathbb{R}^k`$.
 - For direct solvers, `--tol` is a relative rank threshold; loosen to detect larger near-null subspaces.
 - For iterative solvers (`cyclic`, `lobpcg`, `primme`, `spectra`), use `--k` to request the number of right-null vectors you want to extract. For `cyclic`, `--left` writes `N_left.csv`.
-- The framework includes a post-processing filter that validates every computed vector against `||Av||_2 < tau` to guarantee physical correctness regardless of the underlying algorithm's algebraic convergence.
+- The framework includes a post-processing filter that validates every computed vector against $`\|Av\|_2 \lt \tau`$ to guarantee physical correctness regardless of the underlying algorithm's algebraic convergence.
 
 ## Origin / Credits
 
