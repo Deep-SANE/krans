@@ -21,7 +21,7 @@ The matrix here is the $`(n-N) \times n`$ matrix $`A`$ defined by
 (Ax)_i = x_{i+N} - c\,x_i, \qquad i = 0, \dots, n-N-1,
 ```
 
-with $`n = 1000`$, $`N = 3`$ and $`c = \tfrac12`$. Its null space is known exactly: it is
+with $`n = 1000`$, $`N = 3`$ and $`c = 1/2`$. Its null space is known exactly: it is
 $`N`$-dimensional, spanned by the vectors $`v_0, \dots, v_{N-1}`$, where $`(v_j)_{j+kN} = c^k`$ for
 $`k = 0, 1, \dots`$ and all other entries are zero. $`A`$ is also well-conditioned: its nonzero
 singular values lie in $`[1-c,\, 1+c]`$ for any $`n`$, so both iterative solvers converge with default
